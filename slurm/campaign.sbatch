@@ -7,10 +7,10 @@
 # same GPU type (.claude/cluster.md). Timing: one discarded warm-up per arm, CUDA-synchronized clocks,
 # generation time excludes model load and image preprocessing.
 #
-# Runtime estimate for mme_caption_frontier (50 images x 7 arms, gen_length = steps = 128, threshold 0.5):
-# per image full 58 s, interval 1 ~45 s, 2 ~25 s, 4 ~14 s, 8 ~9 s, 16 ~7 s, 32 ~6 s ~ 165 s (full and
-# interval 1/32 measured in Phase 0 smoke; 2-16 and the threshold-0.5 effect are guesses) -> ~2.3 h.
-# --time 4:00 leaves margin; under the 4 GPU-hour line.
+# Runtime, mme_caption_frontier (50 images x 7 arms, gen_length = steps = 128, threshold 0.5), MEASURED in
+# job 18513394: per image full 65.6 s, interval 1 48.3, 2 26.5, 4 15.7, 8 10.4, 16 7.7, 32 6.3 s = 181 s
+# -> 2.5 h generation, ~2.9 h wall. --time 4:00; under the 4 GPU-hour line. Other campaigns: state their own
+# estimate in the submission message (gen_length and sample count change it).
 #
 # Usage:  sbatch slurm/campaign.sbatch configs/campaigns/mme_caption_frontier.json
 #SBATCH --job-name=campaign

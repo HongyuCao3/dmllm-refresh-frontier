@@ -51,6 +51,11 @@ load 27 s; prompt length N = 1.0–3.7k (anyres visual tokens; typical ~3k); ful
 A 40GB card holds one KV copy; two copies at N ≈ 3.7k should still fit 80GB. Source:
 `results/phase0/smoke/smoke_summary.json`.
 
+**Measured campaign (mme_caption_frontier, job 18513394, A100 80GB PCIe, threshold 0.5):** per image full 65.6 s,
+interval 1 48.3, 2 26.5, 4 15.7, 8 10.4, 16 7.7, 32 6.3 s → 181 s/image for 7 arms; 50 images = 2.5 h of
+generation, ~2.9 h wall with warm-ups and one preemption + requeue. **work1 preemption happens**: keep every
+long job resumable and `--requeue`d.
+
 **Wall-clock comparisons run on one GPU type.** Every row of a speed–quality table comes from the same
 `--constraint`, and the sbatch header names it. A40 / L40S / A100 numbers are never mixed in one table.
 

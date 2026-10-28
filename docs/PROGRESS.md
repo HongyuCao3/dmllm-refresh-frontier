@@ -32,18 +32,44 @@ Authoritative run log, decisions and lever maps. Plan: `plans/research_plan_v2.m
   evaluates LLaDA-V. dKV-Cache is also text-only. Both need ports to LLaDA-V, validated first on
   LLaDA-8B-Instruct against upstream. Phase 1 may take +1–2 weeks.
 - Inference uses `sdpa` (as upstream's demo); flash-attn is not needed.
-- Open measurement: the sequence length N with anyres visual tokens may be 3–5k, not the ~1000 in the plan's
-  storage estimate. Measure in the Phase 0 smoke test.
+- ~~Open measurement: N with anyres visual tokens~~ measured in Phase 0: N = 1.0–3.7k (typical ~3k), 3x the
+  plan's ~1000 (see "Phase 0 smoke").
+
+## Findings so far (Phase 0–1, 2026-10-28)
+
+- **The upstream fixed-interval frontier reproduces on our hardware and images** (G1 PASS with a recorded
+  deviation, see Decisions). Speedup ladder at threshold 0.5: 1.36x / 2.47x / 4.19x / 6.31x / 8.47x / 10.34x for
+  interval 1 / 2 / 4 / 8 / 16 / 32. This is the reference curve every policy is compared against.
+- **The target zone is interval 2–4: Jaccard 0.62–0.55 at 2.5–4.2x.** Interval 1 → 2 drops Jaccard by 0.37
+  (0.982 → 0.615) but intervals 4 → 32 by only 0.12. Most of the content drift happens as soon as any step reuses
+  the cache; this is the region where a better-placed refresh has room to win.
+- **Interval-2 Jaccard is bimodal per image** (6/50 exact match, range 0.24–1.0, sd 0.24). Paired tests over
+  images, not means, must carry quality comparisons near interval 2.
+- **The unified loop adds no cost**: token-identical to upstream and equal time (`src/methods/refresh/loop.py`).
+  Run-to-run nondeterminism on this path: 0/5 token mismatches.
+- **Threshold 0.5 barely parallelizes caption decoding**: 105–114 forwards of 128 at every interval. Measured r
+  equals 1/k (r = 0.502 at interval 2, 0.035 at 32), so r is set by the interval, not by early termination.
+- **Cost profile (A100 80GB PCIe)**: full recompute 65.6 s/image; interval 1 48.3, 2 26.5, 4 15.7, 8 10.4,
+  16 7.7, 32 6.3 s. Model load 27–53 s; peak memory 31 GB. work1 jobs can be preempted (job 18513394 was, at
+  270/350 rows); `--requeue` plus per-row resume recovered it without duplicates.
 
 ## Next steps
 
-1. ~~Env + weights~~ done 2026-10-28.
-2. ~~Phase 0 smoke~~ done 2026-10-28 (see above). Open: paper settings (threshold, Jaccard definition) for G1(ii).
-3. Unified generation loop skeleton with a `RefreshPolicy` interface; token-identity test against upstream
-   Fast-dLLM (G1 part i).
-4. `src/scripts/gate_check.py` once the Phase 1 output format is fixed.
-5. Sync the online plan artifact (claude.ai/artifact/Aw3jJnaReYrrrsWJ2R8tEC) with the frozen gates and the
-   repetition protocol, if wanted.
+Done 2026-10-28: env + weights; Phase 0 smoke; paper settings (threshold 0.5, word-set Jaccard); unified loop
+with `RefreshPolicy` (G1(i)); `src/scripts/gate_check.py g1`; MME frontier (G1(ii)).
+
+Remaining Phase 1 work (plan: frontier + baselines on captioning and MathVerse):
+
+1. **MathVerse frontier** (proposed next, no new code): MathVerse data prep, a thinking-mode campaign
+   (gen_length 256–512), full + intervals 1–32 via `slurm/campaign.sbatch`. Needs: prompt and answer parsing
+   for thinking mode, accuracy scorer. Runtime to estimate once gen_length and sample count are fixed.
+2. **Elastic-Cache port to LLaDA-V** (strongest baseline; released code has `llada/`, `dream/` only). Validate
+   first on LLaDA-8B-Instruct against upstream Elastic-Cache, then port. Plan budget +1–2 weeks.
+3. **dKV-Cache-Decode port** (text-only upstream), same validation path.
+4. dLLM-Cache baseline from upstream LLaDA-V's own copy (`register_cache_LLaDA_V`); add as a campaign arm.
+5. Same-budget random refresh policy (`policies.py`), needed by every later comparison.
+6. Optional: sync the online plan artifact (claude.ai/artifact/Aw3jJnaReYrrrsWJ2R8tEC) with the frozen gates,
+   the repetition protocol and the measured frontier.
 
 ## Phase 0 smoke (2026-10-28)
 
@@ -80,7 +106,8 @@ reported result):
 - Our ratios are close to Faster but Different Tab. 3 at interval 32 only **with threshold 1** (11.07x vs 11.3x;
   without threshold 8.89x). Interval 1 is 1.18x vs their 1.3x. Open: which threshold and which Jaccard
   definition (word set? token set?) the paper used. This decides the G1(ii) comparison settings and must be
-  settled before Phase 1 runs; it is not decided here.
+  settled before Phase 1 runs; it is not decided here. **Settled 2026-10-28** from the paper: threshold 0.5,
+  lowercased alphabetic word-set Jaccard (see "Phase 1").
 
 ## Phase 1 (started 2026-10-28)
 
