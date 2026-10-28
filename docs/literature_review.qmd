@@ -1,0 +1,295 @@
+---
+title: "Literature Review"
+---
+
+## Research Landscape
+
+Organise related work into 2–4 thematic clusters. Each cluster follows the same
+**What → Why → How** structure: *what* and *why* are one-sentence scan-points;
+*how* details are hidden behind a disclosure toggle and prefaced by a diagram.
+
+```{dot}
+//| label: fig-landscape
+//| fig-cap: "Literature landscape: foundations → clusters → this work"
+//| fig-width: 7
+//| fig-height: 3.5
+digraph G {
+  bgcolor="transparent"
+  rankdir=TB
+  graph [ranksep=0.55, nodesep=0.5]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
+        shape=box, width=1.6, height=0.42, margin="0.15,0.08"]
+  edge [color="#6c757d", penwidth=1.4]
+
+  subgraph row1 {
+    rank=same
+    F1 [label="Cluster A", fillcolor="#375a7f"]
+    F2 [label="Cluster B", fillcolor="#375a7f"]
+    F3 [label="Cluster C", fillcolor="#375a7f"]
+  }
+  subgraph row2 {
+    rank=same
+    G1 [label="Gap A", fillcolor="#4a2040", color="#e74c3c"]
+    G2 [label="Gap B", fillcolor="#4a2040", color="#e74c3c"]
+    G3 [label="Gap C", fillcolor="#4a2040", color="#e74c3c"]
+  }
+  subgraph row3 {
+    rank=same
+    Us [label="This Work", fillcolor="#1a4a3a", color="#00bc8c", width=5.0]
+  }
+
+  F1 -> G1  F2 -> G2  F3 -> G3
+  G1 -> Us  G2 -> Us  G3 -> Us
+}
+```
+
+---
+
+## Cluster A — [Category Name, e.g., "Deep Feature Extractors"]
+
+- **What**: [One sentence — what this line of work produces or achieves.]
+- **Why it emerged**: [One sentence — what open problem or limitation drove its creation.]
+- **Why it's insufficient**: [One sentence — the concrete gap that this work addresses.]
+
+> Key papers: [@ref1], [@ref2], [@ref3]
+
+```{dot}
+//| label: fig-cluster-a
+//| fig-cap: "Cluster A: core mechanism"
+//| fig-width: 7
+//| fig-height: 2.8
+digraph G {
+  bgcolor="transparent"
+  rankdir=LR
+  graph [ranksep=0.6, nodesep=0.45]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
+        shape=box, width=1.55, height=0.42]
+  edge [color="#6c757d", penwidth=1.4]
+
+  subgraph col1 {
+    rank=same
+    In1 [label="Input A",  fillcolor="#375a7f"]
+    In2 [label="Input B",  fillcolor="#375a7f"]
+  }
+  subgraph col2 {
+    rank=same
+    Op1 [label="Op 1"]
+    Op2 [label="Op 2"]
+  }
+  subgraph col3 {
+    rank=same
+    Out [label="Output", fillcolor="#1a4a3a", color="#00bc8c"]
+    Gap [label="Gap",    fillcolor="#4a2040", color="#e74c3c"]
+  }
+
+  In1 -> Op1  In2 -> Op2
+  Op1 -> Out  Op2 -> Out
+  Out -> Gap [style=dashed, color="#e74c3c"]
+}
+```
+
+<details>
+<summary><strong>How — Core Ideas and Steps</strong></summary>
+
+**Core idea**: [one sentence — the key insight or inductive bias]
+
+Steps:
+
+1. [Step 1 — input processing or encoding]
+2. [Step 2 — main transformation]
+3. [Step 3 — output or prediction]
+
+Key design choices:
+
+- [Choice A]: [why it was made; alternative considered]
+- [Choice B]: [why it was made; alternative considered]
+
+Limitation in detail: [explain precisely why the gap arises from the mechanism, not just the result]
+
+</details>
+
+---
+
+## Cluster B — [Category Name, e.g., "Regularisation Methods"]
+
+- **What**: [One sentence — what this line of work produces or achieves.]
+- **Why it emerged**: [One sentence — what open problem or limitation drove its creation.]
+- **Why it's insufficient**: [One sentence — the concrete gap that this work addresses.]
+
+> Key papers: [@ref4], [@ref5]
+
+```{dot}
+//| label: fig-cluster-b
+//| fig-cap: "Cluster B: core mechanism"
+//| fig-width: 7
+//| fig-height: 2.8
+digraph G {
+  bgcolor="transparent"
+  rankdir=LR
+  graph [ranksep=0.6, nodesep=0.45]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
+        shape=box, width=1.55, height=0.42]
+  edge [color="#6c757d", penwidth=1.4]
+
+  subgraph col1 {
+    rank=same
+    In1 [label="Input A",  fillcolor="#375a7f"]
+    In2 [label="Input B",  fillcolor="#375a7f"]
+  }
+  subgraph col2 {
+    rank=same
+    Op1 [label="Op 1"]
+    Op2 [label="Op 2"]
+  }
+  subgraph col3 {
+    rank=same
+    Out [label="Output", fillcolor="#1a4a3a", color="#00bc8c"]
+    Gap [label="Gap",    fillcolor="#4a2040", color="#e74c3c"]
+  }
+
+  In1 -> Op1  In2 -> Op2
+  Op1 -> Out  Op2 -> Out
+  Out -> Gap [style=dashed, color="#e74c3c"]
+}
+```
+
+<details>
+<summary><strong>How — Core Ideas and Steps</strong></summary>
+
+**Core idea**: [one sentence — the key insight or inductive bias]
+
+Steps:
+
+1. [Step 1 — input processing or encoding]
+2. [Step 2 — main transformation]
+3. [Step 3 — output or prediction]
+
+Key design choices:
+
+- [Choice A]: [why it was made; alternative considered]
+- [Choice B]: [why it was made; alternative considered]
+
+Limitation in detail: [explain precisely why the gap arises from the mechanism]
+
+</details>
+
+---
+
+## Cluster C — [Category Name, e.g., "Scalable Training Strategies"]
+
+- **What**: [One sentence — what this line of work produces or achieves.]
+- **Why it emerged**: [One sentence — what open problem or limitation drove its creation.]
+- **Why it's insufficient**: [One sentence — the concrete gap that this work addresses.]
+
+> Key papers: [@ref6], [@ref7], [@ref8]
+
+```{dot}
+//| label: fig-cluster-c
+//| fig-cap: "Cluster C: core mechanism"
+//| fig-width: 7
+//| fig-height: 2.8
+digraph G {
+  bgcolor="transparent"
+  rankdir=LR
+  graph [ranksep=0.6, nodesep=0.45]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
+        shape=box, width=1.55, height=0.42]
+  edge [color="#6c757d", penwidth=1.4]
+
+  subgraph col1 {
+    rank=same
+    In1 [label="Input A",  fillcolor="#375a7f"]
+    In2 [label="Input B",  fillcolor="#375a7f"]
+  }
+  subgraph col2 {
+    rank=same
+    Op1 [label="Op 1"]
+    Op2 [label="Op 2"]
+  }
+  subgraph col3 {
+    rank=same
+    Out [label="Output", fillcolor="#1a4a3a", color="#00bc8c"]
+    Gap [label="Gap",    fillcolor="#4a2040", color="#e74c3c"]
+  }
+
+  In1 -> Op1  In2 -> Op2
+  Op1 -> Out  Op2 -> Out
+  Out -> Gap [style=dashed, color="#e74c3c"]
+}
+```
+
+<details>
+<summary><strong>How — Core Ideas and Steps</strong></summary>
+
+**Core idea**: [one sentence — the key insight or inductive bias]
+
+Steps:
+
+1. [Step 1 — input processing or encoding]
+2. [Step 2 — main transformation]
+3. [Step 3 — output or prediction]
+
+Key design choices:
+
+- [Choice A]: [why it was made; alternative considered]
+- [Choice B]: [why it was made; alternative considered]
+
+Limitation in detail: [explain precisely why the gap arises from the mechanism]
+
+</details>
+
+---
+
+## Gap Synthesis
+
+From the three clusters above, three concrete gaps converge to motivate this work:
+
+- **Gap A** (from Cluster A): [one sentence — what specifically is missing]
+- **Gap B** (from Cluster B): [one sentence — what specifically is missing]
+- **Gap C** (from Cluster C): [one sentence — what specifically is missing]
+
+```{dot}
+//| label: fig-gap-synthesis
+//| fig-cap: "Three gaps → this work's contributions"
+//| fig-width: 7
+//| fig-height: 2.8
+digraph G {
+  bgcolor="transparent"
+  rankdir=LR
+  graph [ranksep=0.6, nodesep=0.45]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
+        shape=box, width=1.55, height=0.42]
+  edge [color="#6c757d", penwidth=1.4]
+
+  subgraph col1 {
+    rank=same
+    GA [label="Gap A", fillcolor="#4a2040", color="#e74c3c"]
+    GB [label="Gap B", fillcolor="#4a2040", color="#e74c3c"]
+    GC [label="Gap C", fillcolor="#4a2040", color="#e74c3c"]
+  }
+  subgraph col2 {
+    rank=same
+    C1 [label="Contrib 1", fillcolor="#1a4a3a", color="#00bc8c"]
+    C2 [label="Contrib 2", fillcolor="#1a4a3a", color="#00bc8c"]
+    C3 [label="Contrib 3", fillcolor="#1a4a3a", color="#00bc8c"]
+  }
+
+  GA -> C1  GB -> C2  GC -> C3
+}
+```
+
+<details>
+<summary><strong>How — Positioning Argument</strong></summary>
+
+**vs. Cluster A best method** ([@ref2]): same problem formulation; this work improves by [mechanism X] — directly addresses Gap A.
+
+**vs. Cluster B best method** ([@ref5]): different scope; this work generalises to [scenario] that [@ref5] excludes.
+
+**vs. Cluster C best method** ([@ref8]): concurrent work; key difference is [design decision Y] — empirically validated in [experiment].
+
+</details>

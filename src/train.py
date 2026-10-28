@@ -1,0 +1,847 @@
+"""Core training / optuna / inference orchestration.
+
+Public API
+----------
+run_train(cfg)  -> Dict[str, Any]   train + test, return metrics
+run_bench(cfg)  -> Dict[str, Any]   multi-seed test-metric mean ± std (reportable)
+run_optuna(cfg) -> None             hyperparameter search with Optuna
+run_infer(cfg)  -> None             load checkpoint, run predict + analyzers
+
+Tracking contract
+-----------------
+Every ``run_train`` call writes ``run_summary.json`` to the current working
+directory (Hydra's per-run output dir) and uploads it to MLflow under the
+``summary/`` artifact path.  The summary always contains the 9 canonical
+observability fields regardless of whether the run succeeded or failed:
+
+    trial_id, seed, params, final_metric, best_metric,
+    convergence_step, status, wall_time, traceback
+"""
+from __future__ import annotations
+
+import csv
+import json
+import statistics
+import time
+import traceback as tb_module
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+import pytorch_lightning as pl
+from omegaconf import DictConfig, OmegaConf
+from pytorch_lightning.callbacks import EarlyStopping, LearningRateMonitor, ModelCheckpoint
+
+import hydra
+
+from src.callbacks.oom_handler import OOMHandler
+from src.callbacks.run_tracker import RunTrackerCallback
+from src.utils.logging import get_logger
+from src.utils.mlflow_utils import (
+    log_artifact_to_run,
+    log_config_to_run,
+    log_exception_to_run,
+    log_run_summary,
+    log_tags,
+)
+
+log = get_logger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _get_name_from_target(target: str, kind: str = "method") -> str:
+    """Derive a short human-readable name from a _target_ string."""
+    parts = target.split(".")
+    if kind == "method":
+        try:
+            idx = parts.index("methods")
+            return parts[idx + 1]
+        except (ValueError, IndexError):
+            pass
+    elif kind == "dataset":
+        return parts[-1].replace("DataModule", "").lower()
+    return parts[-1].lower()
+
+
+def _build_checkpoint_callback(cfg: DictConfig, method_name: str, dataset_name: str) -> ModelCheckpoint:
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    dirpath = Path("checkpoints") / method_name / timestamp
+
+    monitor = cfg.experiment.monitor
+    mode = cfg.experiment.mode
+    # Filename template includes the monitored metric so the metric name and
+    # value are visible at a glance, e.g. "...-epoch=07-val_acc=0.9215".
+    filename = (
+        f"{method_name}-{dataset_name}-{timestamp}"
+        f"-epoch={{epoch:02d}}-{monitor}={{{monitor}:.4f}}"
+    )
+
+    return ModelCheckpoint(
+        dirpath=str(dirpath),
+        filename=filename,
+        monitor=monitor,
+        mode=mode,
+        save_last=True,
+        save_top_k=3,
+        verbose=True,
+    )
+
+
+# Substrings that mark a metric name as loss-like. Conservative on purpose:
+# perplexity/ELBO are deliberately excluded — they are legitimate task
+# metrics in LM and VAE settings respectively.
+_LOSS_PATTERNS: tuple[str, ...] = ("loss", "nll")
+
+
+def _looks_like_loss(metric_name: str) -> bool:
+    """Heuristic: does this metric name describe a loss-like scalar?"""
+    name = metric_name.lower()
+    return any(tok in name for tok in _LOSS_PATTERNS)
+
+
+def _validate_experiment(cfg: DictConfig) -> None:
+    """Refuse to run if the experiment objective is mis-configured.
+
+    Hard rule (see .claude/global.md): loss is a training signal, not an
+    evaluation metric. It may serve as ``experiment.monitor`` only when
+    ``experiment.kind == "convergence"``. For ``evaluation`` / ``robust``
+    the monitor MUST be a real task metric (acc / F1 / AUROC / ECE / ...).
+    """
+    kind = OmegaConf.select(cfg, "experiment.kind", default=None)
+    monitor = OmegaConf.select(cfg, "experiment.monitor", default=None)
+    mode = OmegaConf.select(cfg, "experiment.mode", default=None)
+
+    if kind is None or monitor is None or mode is None:
+        raise ValueError(
+            "cfg.experiment.{kind,monitor,mode} must all be set. Add "
+            "`- experiment: <preset>` to the defaults list, or pass via CLI "
+            "(e.g. `experiment=evaluation`)."
+        )
+    if mode not in ("min", "max"):
+        raise ValueError(f"experiment.mode must be 'min' or 'max', got {mode!r}")
+    if kind not in ("convergence", "evaluation", "robust"):
+        raise ValueError(
+            f"experiment.kind must be one of "
+            f"('convergence', 'evaluation', 'robust'), got {kind!r}"
+        )
+    if kind != "convergence" and _looks_like_loss(monitor):
+        raise ValueError(
+            f"experiment.kind={kind!r} but monitor={monitor!r} looks like a "
+            "loss. Loss is permitted as the primary metric ONLY when "
+            "experiment.kind='convergence'. Pick a task metric (val_acc, "
+            "val_f1, val_auroc, ...) or switch the experiment kind. "
+            "See .claude/global.md → 'Evaluation metrics'."
+        )
+
+
+def _validate_report(cfg: DictConfig) -> None:
+    """Refuse to produce a reportable number from a mis-specified basis.
+
+    Hard rule (see .claude/global.md → 'Reporting standard'): the only number
+    that may leave this project as a result — for a paper, slide, or weekly
+    report — is ``cfg.experiment.report_metric`` averaged over
+    ``cfg.experiment.seeds`` (>= 3 distinct seeds) on the held-out TEST split,
+    quoted as ``mean ± std``. This guard runs at the top of ``run_bench`` and
+    enforces that basis:
+
+    * ``report_metric`` must name a held-out test metric (``test_*`` prefix)
+      and must be a task metric, never a loss — a validation number or a loss
+      is not a comparable, reportable result.
+    * ``seeds`` must contain at least 3 distinct seeds — a single- or
+      double-seed point estimate has no usable error bar.
+    """
+    report_metric = OmegaConf.select(cfg, "experiment.report_metric", default=None)
+    seeds = OmegaConf.select(cfg, "experiment.seeds", default=None)
+
+    if report_metric is None or seeds is None:
+        raise ValueError(
+            "cfg.experiment.{report_metric,seeds} must both be set for bench "
+            "mode. Use an experiment preset that defines them (e.g. "
+            "`experiment=evaluation`)."
+        )
+
+    name = str(report_metric)
+    if not name.startswith("test_"):
+        raise ValueError(
+            f"experiment.report_metric={name!r} is not a held-out test metric. "
+            "Reportable numbers MUST come from the test split (a `test_*` key "
+            "such as test_acc / test_f1 / test_auroc). Validation metrics are "
+            "for model selection, not for reporting. "
+            "See .claude/global.md → 'Reporting standard'."
+        )
+    if _looks_like_loss(name):
+        raise ValueError(
+            f"experiment.report_metric={name!r} looks like a loss. A loss is "
+            "not a comparable evaluation result. Report a task metric "
+            "(test_acc / test_f1 / test_auroc / ...)."
+        )
+
+    seeds_list = list(seeds)
+    if len(seeds_list) < 3:
+        raise ValueError(
+            f"experiment.seeds has {len(seeds_list)} seed(s); reporting requires "
+            ">= 3 so a mean ± std has meaning. "
+            "See .claude/global.md → 'Reporting standard'."
+        )
+    if len({int(s) for s in seeds_list}) != len(seeds_list):
+        raise ValueError(
+            f"experiment.seeds must be distinct, got {seeds_list!r}. Duplicate "
+            "seeds reproduce the same run and fake an error bar."
+        )
+
+
+def _save_latest_record(ckpt_path: str, output_dir: str = ".") -> None:
+    """Write latest checkpoint path to a JSON record (symlink alternative for Windows)."""
+    record = {"latest_checkpoint": str(ckpt_path), "updated_at": datetime.now().isoformat()}
+    record_path = Path(output_dir) / "latest_checkpoint.json"
+    record_path.parent.mkdir(parents=True, exist_ok=True)
+    record_path.write_text(json.dumps(record, indent=2))
+    log.info(f"Latest checkpoint record saved to {record_path}")
+
+
+def _suggest_params_from_search_space(trial, cfg: DictConfig) -> DictConfig:
+    """Apply Optuna trial suggestions based on cfg.optuna.search_space."""
+    cfg_dict = OmegaConf.to_container(cfg, resolve=True)
+    cfg_trial = OmegaConf.create(cfg_dict)
+
+    search_space = OmegaConf.select(cfg, "optuna.search_space") or {}
+    for param_path, spec in search_space.items():
+        kind = spec.get("type", "float")
+        if kind == "float":
+            value = trial.suggest_float(
+                param_path,
+                spec["low"],
+                spec["high"],
+                log=spec.get("log", False),
+            )
+        elif kind == "int":
+            value = trial.suggest_int(param_path, spec["low"], spec["high"])
+        elif kind == "categorical":
+            value = trial.suggest_categorical(param_path, spec["choices"])
+        else:
+            continue
+        OmegaConf.update(cfg_trial, param_path, value)
+
+    return cfg_trial
+
+
+# ---------------------------------------------------------------------------
+# run_train
+# ---------------------------------------------------------------------------
+
+def run_train(cfg: DictConfig) -> Dict[str, Any]:
+    """Train and optionally test a model.
+
+    Contract
+    --------
+    - Seeds everything with ``cfg.seed``
+    - Instantiates datamodule, model (LightningModule), logger, trainer
+    - Calls ``trainer.fit()``; calls ``trainer.test()`` if ``cfg.mode.run_test``
+    - **Always** writes ``run_summary.json`` (9 canonical fields) regardless of
+      success or failure, then re-raises any exception
+    - Returns the trainer ``callback_metrics`` dict (contents depend on what
+      the LitModule logs — at minimum ``cfg.experiment.monitor``)
+
+    Summary fields
+    --------------
+    trial_id         : Optuna trial number if called from run_optuna, else None
+    seed             : integer seed from cfg.seed
+    params           : flat dict of model hyper-parameters from model.hparams
+    final_metric     : value of cfg.experiment.monitor at end of training
+                       (None on fast_dev_run or if not logged)
+    best_metric      : best value of cfg.experiment.monitor across all epochs
+                       (from RunTrackerCallback)
+    convergence_step : first epoch where the metric crossed the threshold (None)
+    status           : "completed" or "failed"
+    wall_time        : total elapsed seconds (float)
+    traceback        : formatted traceback string on failure, None on success
+    """
+    # ------------------------------------------------------------------
+    # Wall-clock start — captured before any work so it includes setup time
+    # ------------------------------------------------------------------
+    _wall_start = time.monotonic()
+
+    # Refuse mis-configured experiments before any expensive work happens.
+    _validate_experiment(cfg)
+
+    pl.seed_everything(cfg.seed, workers=True)
+
+    # --- Instantiate components ------------------------------------------
+    # _convert_="all" tells Hydra to convert every OmegaConf container
+    # (ListConfig, DictConfig, ContainerMetadata …) to native Python types
+    # (list, dict) before calling __init__.  This prevents save_hyperparameters()
+    # from storing OmegaConf objects in the checkpoint, which would cause
+    # torch.load(weights_only=True) to fail on PyTorch 2.6+.
+    datamodule: pl.LightningDataModule = hydra.utils.instantiate(cfg.dataset, _convert_="all")
+    model: pl.LightningModule = hydra.utils.instantiate(cfg.method, _convert_="all")
+    logger = hydra.utils.instantiate(cfg.logger)
+
+    # Attach an eval-critical snapshot to the model so every checkpoint saved
+    # during fit() embeds the exact data-split conditions this run used.
+    # `run_eval` reads this key back (via src.methods._eval_snapshot_mixin
+    # .read_eval_snapshot) to enforce "same conditions" on post-hoc re-eval.
+    if hasattr(model, "attach_eval_snapshot"):
+        model.attach_eval_snapshot({
+            "dataset_target": OmegaConf.select(cfg, "dataset._target_", default=None),
+            "split_seed": OmegaConf.select(cfg, "dataset.split_seed", default=None),
+            "val_split": OmegaConf.select(cfg, "dataset.val_split", default=None),
+            "test_split": OmegaConf.select(cfg, "dataset.test_split", default=None),
+            "method_target": OmegaConf.select(cfg, "method._target_", default=None),
+        })
+
+    # Snapshot hyper-parameters immediately after instantiation so they are
+    # available for the run summary even if fit() later raises.
+    _tracked_params: Dict[str, Any] = dict(model.hparams)
+
+    method_name = _get_name_from_target(cfg.method._target_, "method")
+    dataset_name = _get_name_from_target(cfg.dataset._target_, "dataset")
+
+    # --- Callbacks ----------------------------------------------------------
+    # All selection surfaces (checkpoint, early-stop, tracker) read the same
+    # (monitor, mode) pair from cfg.experiment so they cannot drift apart.
+    monitor = cfg.experiment.monitor
+    mode = cfg.experiment.mode
+    patience = int(OmegaConf.select(cfg, "experiment.patience", default=10))
+    convergence_threshold = OmegaConf.select(
+        cfg, "experiment.convergence_threshold", default=None
+    )
+
+    ckpt_callback = _build_checkpoint_callback(cfg, method_name, dataset_name)
+    # RunTrackerCallback is a pure data accumulator — no I/O.
+    # run_train reads its public attributes after fit() to build the summary.
+    tracker = RunTrackerCallback(
+        monitor=monitor,
+        mode=mode,
+        convergence_threshold=convergence_threshold,
+    )
+    callbacks = [
+        ckpt_callback,
+        LearningRateMonitor(logging_interval="epoch"),
+        EarlyStopping(monitor=monitor, patience=patience, mode=mode),
+        OOMHandler(),
+        tracker,
+    ]
+
+    # --- Trainer ------------------------------------------------------------
+    fast_dev_run = bool(OmegaConf.select(cfg, "mode.fast_dev_run", default=False))
+    trainer_kwargs: Dict[str, Any] = dict(logger=logger, callbacks=callbacks)
+    if fast_dev_run:
+        trainer_kwargs["fast_dev_run"] = True
+
+    trainer: pl.Trainer = hydra.utils.instantiate(cfg.trainer, **trainer_kwargs)
+
+    # --- Log merged config as artifact --------------------------------------
+    log_config_to_run(cfg, logger)
+
+    # --- Lineage tags --------------------------------------------------------
+    # These tags make training runs filterable in MLflow so cross-run
+    # comparisons only ever happen between runs sharing identical eval
+    # conditions. `run_eval` records the same keys plus `parent_run_id` and
+    # `checkpoint_sha256`, allowing ``mlflow.search_runs`` queries like
+    # ``tags.split_seed = '42' AND tags.dataset_target = '...'``.
+    log_tags({
+        "split_seed": OmegaConf.select(cfg, "dataset.split_seed", default=None),
+        "val_split": OmegaConf.select(cfg, "dataset.val_split", default=None),
+        "test_split": OmegaConf.select(cfg, "dataset.test_split", default=None),
+        "dataset_target": OmegaConf.select(cfg, "dataset._target_", default=None),
+        "method_target": OmegaConf.select(cfg, "method._target_", default=None),
+        "run_kind": "train",
+    })
+
+    # --- Fit + Test (with failure capture) ----------------------------------
+    # The exception object and formatted traceback are stored so the summary
+    # can be written unconditionally before re-raising.
+    _exc: Optional[Exception] = None
+    _traceback: Optional[str] = None
+    _status = "completed"
+
+    log.info(f"Starting training: method={method_name}, dataset={dataset_name}")
+    try:
+        trainer.fit(model, datamodule=datamodule)
+
+        run_test = bool(OmegaConf.select(cfg, "mode.run_test", default=True))
+        if run_test and not fast_dev_run:
+            trainer.test(model, datamodule=datamodule, ckpt_path="best")
+
+    except Exception as exc:
+        _status = "failed"
+        _traceback = tb_module.format_exc()
+        _exc = exc
+        # Upload traceback + set MLflow tags before the summary is written
+        log_exception_to_run(exc)
+
+    # --- Save latest checkpoint record (only on success) -------------------
+    if _exc is None and ckpt_callback.best_model_path:
+        _save_latest_record(ckpt_callback.best_model_path)
+        log_artifact_to_run(ckpt_callback.best_model_path, logger, tag="best_checkpoint")
+
+    # --- Build and log the structured run summary --------------------------
+    # This block always runs — both on success and failure.
+    metrics: Dict[str, Any] = {
+        k: float(v) for k, v in trainer.callback_metrics.items()
+    }
+    _summary: Dict[str, Any] = {
+        # trial_id is injected by run_optuna via cfg.optuna._trial_id;
+        # returns None for standalone train runs.
+        "trial_id": OmegaConf.select(cfg, "optuna._trial_id", default=None),
+        "seed": int(cfg.seed),
+        "params": _tracked_params,
+        # final_metric / best_metric are sourced from cfg.experiment.monitor
+        # so the run summary speaks the same language as ModelCheckpoint,
+        # EarlyStopping and Optuna. Never val_loss by default.
+        "final_metric": metrics.get(monitor),
+        "best_metric": tracker.best_value,
+        "convergence_step": tracker.convergence_step,
+        "status": _status,
+        "wall_time": round(time.monotonic() - _wall_start, 3),
+        "traceback": _traceback,
+    }
+    log_run_summary(_summary)
+    log.info(f"Training complete | status={_status} | metrics={metrics}")
+
+    # Re-raise any captured exception after the summary has been persisted
+    if _exc is not None:
+        raise _exc
+
+    return metrics
+
+
+# ---------------------------------------------------------------------------
+# run_bench
+# ---------------------------------------------------------------------------
+
+def run_bench(cfg: DictConfig) -> Dict[str, Any]:
+    """Multi-seed benchmark — the only sanctioned source of a reportable number.
+
+    Trains the identical config under every seed in ``cfg.experiment.seeds``,
+    runs the held-out test split each time (``mode.run_test=true``), collects
+    ``cfg.experiment.report_metric`` from each run, and aggregates them into a
+    ``mean ± std (n)`` headline. A single ``run_train`` produces a model and a
+    val-driven ``run_summary.json``; it is NOT a reportable result. ``run_bench``
+    is.
+
+    Contract
+    --------
+    - ``_validate_experiment`` + ``_validate_report`` gate the run up-front, so
+      a mis-specified report metric or too-few seeds fails before any training.
+    - Each seed runs via ``run_train`` on a **copy** of cfg (seed patched in),
+      mirroring ``run_optuna``: each seed becomes its own MLflow run with its own
+      ``run_summary.json``; the canonical per-seed record lives in MLflow.
+    - Aggregation is over the held-out **test** metric only — validation numbers
+      and losses are refused by ``_validate_report``.
+
+    Outputs (written to the Hydra per-run dir, like ``optuna_summary.*``)
+    --------------------------------------------------------------------
+    * ``bench_summary.json`` — report_metric, seeds, per-seed values, mean, std,
+      n, and a ready-to-paste ``headline`` string.
+    * ``bench_summary.csv``  — one row per seed plus a final aggregate row.
+
+    Returns
+    -------
+    dict
+        The bench summary (same content as ``bench_summary.json``).
+    """
+    _validate_experiment(cfg)
+    _validate_report(cfg)
+
+    report_metric: str = str(cfg.experiment.report_metric)
+    seeds: List[int] = [int(s) for s in cfg.experiment.seeds]
+
+    log.info(
+        f"Benchmark start | report_metric={report_metric} | seeds={seeds}"
+    )
+
+    per_seed: Dict[str, Optional[float]] = {}
+    values: List[float] = []
+    for seed in seeds:
+        # Only modify a copy of cfg (never in-place) — same rule as run_optuna.
+        cfg_seed = OmegaConf.create(OmegaConf.to_container(cfg, resolve=True))
+        OmegaConf.update(cfg_seed, "seed", seed)
+        # Drive the full training loop with the test split enabled so the
+        # report_metric is actually produced.
+        OmegaConf.update(cfg_seed, "mode.name", "train")
+        OmegaConf.update(cfg_seed, "mode.run_test", True)
+        OmegaConf.update(cfg_seed, "mode.fast_dev_run", False)
+
+        log.info(f"Benchmark seed {seed}: training")
+        metrics = run_train(cfg_seed)
+
+        value = metrics.get(report_metric)
+        if value is None:
+            log.warning(
+                f"Seed {seed}: report_metric {report_metric!r} not found in "
+                f"run metrics {sorted(metrics)} — recorded as null."
+            )
+            per_seed[str(seed)] = None
+        else:
+            value = float(value)
+            per_seed[str(seed)] = value
+            values.append(value)
+
+    n = len(values)
+    mean = statistics.mean(values) if n > 0 else None
+    std = statistics.stdev(values) if n > 1 else None
+
+    if mean is not None and std is not None:
+        headline = f"{report_metric} = {mean:.4f} ± {std:.4f} (n={n})"
+    elif mean is not None:
+        headline = f"{report_metric} = {mean:.4f} (n={n}, std undefined)"
+    else:
+        headline = f"{report_metric} = unavailable (no successful seeds)"
+
+    summary: Dict[str, Any] = {
+        "report_metric": report_metric,
+        "seeds": seeds,
+        "per_seed": per_seed,
+        "mean": round(mean, 6) if mean is not None else None,
+        "std": round(std, 6) if std is not None else None,
+        "n": n,
+        "headline": headline,
+    }
+
+    summary_path = Path("bench_summary.json")
+    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    log.info(f"Bench JSON summary saved to {summary_path}")
+
+    csv_path = Path("bench_summary.csv")
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["seed", report_metric])
+        for seed in seeds:
+            v = per_seed[str(seed)]
+            writer.writerow([seed, "" if v is None else v])
+        writer.writerow([
+            "aggregate",
+            "" if mean is None else f"{mean:.6f}±{'' if std is None else f'{std:.6f}'}",
+        ])
+    log.info(f"Bench CSV summary saved to {csv_path}")
+
+    log_artifact_to_run(str(summary_path), tag="summary")
+    log_artifact_to_run(str(csv_path), tag="summary")
+
+    log.info(f"Benchmark complete | {headline}")
+    return summary
+
+
+# ---------------------------------------------------------------------------
+# run_optuna
+# ---------------------------------------------------------------------------
+
+def run_optuna(cfg: DictConfig) -> None:
+    """Hyperparameter search via Optuna.
+
+    Each trial:
+
+    1. Suggests params from ``cfg.optuna.search_space``
+    2. Injects the trial number as ``cfg.optuna._trial_id`` into a config copy
+    3. Calls ``run_train`` with the patched copy (each trial → separate MLflow run)
+    4. Returns the scalar metric specified by ``cfg.optuna.metric`` (defaults to
+       ``cfg.experiment.monitor`` so Optuna optimises the same scalar as
+       ModelCheckpoint / EarlyStopping)
+
+    After all trials complete, two summary files are written and uploaded to
+    the active MLflow run (if any):
+
+    * ``optuna_summary.json`` — full per-trial records (trial_id, state, value,
+      params, duration_seconds) plus study-level best_value / best_params
+    * ``optuna_summary.csv``  — same data in tabular form for spreadsheet use
+    """
+    import optuna
+
+    optuna.logging.set_verbosity(optuna.logging.INFO)
+
+    # Validate experiment config up-front so a multi-trial run doesn't burn
+    # GPU time before discovering a typo'd monitor.
+    _validate_experiment(cfg)
+
+    storage = OmegaConf.select(cfg, "optuna.storage")
+    if storage in (None, "null", ""):
+        storage = None
+
+    # Derive metric / direction from cfg.experiment when not explicitly
+    # overridden in cfg.optuna — keeps the search aligned with the
+    # experiment's primary metric by default.
+    metric_name = OmegaConf.select(cfg, "optuna.metric")
+    if metric_name in (None, "null", ""):
+        metric_name = cfg.experiment.monitor
+    direction = OmegaConf.select(cfg, "optuna.direction")
+    if direction in (None, "null", ""):
+        direction = "minimize" if cfg.experiment.mode == "min" else "maximize"
+
+    study = optuna.create_study(
+        direction=direction,
+        study_name=cfg.optuna.study_name,
+        storage=storage,
+        load_if_exists=True,
+    )
+
+    def objective(trial: optuna.Trial) -> float:
+        """Single Optuna trial: suggest → configure → train → return metric."""
+        cfg_trial = _suggest_params_from_search_space(trial, cfg)
+
+        # Switch mode to "train" so run_train executes the full training loop
+        OmegaConf.update(cfg_trial, "mode.name", "train")
+        OmegaConf.update(cfg_trial, "mode.run_test", False)
+
+        # Propagate fast_dev_run from the parent config so tests remain fast
+        fast_dev_run = OmegaConf.select(cfg, "mode.fast_dev_run", default=False)
+        OmegaConf.update(cfg_trial, "mode.fast_dev_run", fast_dev_run)
+
+        # Inject trial number so run_train can embed it in run_summary.json
+        OmegaConf.update(cfg_trial, "optuna._trial_id", trial.number)
+
+        try:
+            metrics = run_train(cfg_trial)
+        except Exception as e:
+            log.warning(f"Trial {trial.number} failed: {e}")
+            raise optuna.TrialPruned()
+
+        # Worst-case fallback respects direction so a missing metric never
+        # accidentally ranks as "best" in the study.
+        worst = float("inf") if direction == "minimize" else float("-inf")
+        return float(metrics.get(metric_name, worst))
+
+    timeout = OmegaConf.select(cfg, "optuna.timeout")
+    if timeout in (None, "null"):
+        timeout = None
+
+    study.optimize(
+        objective,
+        n_trials=cfg.optuna.n_trials,
+        timeout=timeout,
+        gc_after_trial=True,
+    )
+
+    log.info(f"Optuna finished. Best value: {study.best_value}")
+    log.info(f"Best params: {study.best_params}")
+
+    # ------------------------------------------------------------------
+    # Build per-trial records (one dict per trial)
+    # ------------------------------------------------------------------
+    trial_records = []
+    for t in study.trials:
+        # Duration is None when the trial never completed (PRUNED / FAIL)
+        duration: Optional[float] = None
+        if t.datetime_start and t.datetime_complete:
+            duration = round(
+                (t.datetime_complete - t.datetime_start).total_seconds(), 3
+            )
+        trial_records.append(
+            {
+                "trial_id": t.number,
+                "state": t.state.name,   # "COMPLETE" | "PRUNED" | "FAIL"
+                "value": t.value,
+                "params": t.params,
+                "duration_seconds": duration,
+            }
+        )
+
+    # ------------------------------------------------------------------
+    # Write optuna_summary.json
+    # ------------------------------------------------------------------
+    summary_path = Path("optuna_summary.json")
+    summary = {
+        "study_name": cfg.optuna.study_name,
+        "direction": direction,
+        "metric": metric_name,
+        "best_value": study.best_value,
+        "best_params": study.best_params,
+        "n_trials": len(study.trials),
+        "trials": trial_records,
+    }
+    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    log.info(f"Optuna JSON summary saved to {summary_path}")
+
+    # ------------------------------------------------------------------
+    # Write optuna_summary.csv (flat table, one row per trial)
+    # ------------------------------------------------------------------
+    csv_path = Path("optuna_summary.csv")
+    if trial_records:
+        # Collect all param keys across all trials to form a stable column set
+        all_param_keys = sorted({k for r in trial_records for k in r["params"]})
+        fieldnames = (
+            ["trial_id", "state", "value", "duration_seconds"] + all_param_keys
+        )
+        rows = []
+        for r in trial_records:
+            row: Dict[str, Any] = {
+                "trial_id": r["trial_id"],
+                "state": r["state"],
+                "value": r["value"],
+                "duration_seconds": r["duration_seconds"],
+            }
+            # Fill param columns; missing params (e.g. pruned trials) → empty
+            for k in all_param_keys:
+                row[k] = r["params"].get(k, "")
+            rows.append(row)
+
+        with open(csv_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+
+        log.info(f"Optuna CSV summary saved to {csv_path}")
+
+    # Upload both summaries to the active MLflow run when available
+    log_artifact_to_run(str(summary_path), tag="summary")
+    if trial_records:
+        log_artifact_to_run(str(csv_path), tag="summary")
+
+
+# ---------------------------------------------------------------------------
+# run_infer
+# ---------------------------------------------------------------------------
+
+def run_infer(cfg: DictConfig) -> None:
+    """Load a checkpoint and run the inference pipeline + analyzers."""
+    from src.inference.pipeline import run_inference_pipeline
+
+    checkpoint_path = OmegaConf.select(cfg, "inference.checkpoint_path")
+    if not checkpoint_path:
+        raise ValueError("inference.checkpoint_path must be set for infer mode. "
+                         "E.g.: python -m src.main mode=infer inference.checkpoint_path=<path>")
+
+    run_inference_pipeline(cfg)
+
+
+# ---------------------------------------------------------------------------
+# run_eval
+# ---------------------------------------------------------------------------
+
+def run_eval(cfg: DictConfig) -> Dict[str, Any]:
+    """Post-hoc re-evaluation of a saved checkpoint.
+
+    Scalars-only by design: produces ``test_*`` metrics via ``trainer.test``
+    and additional ``eval/*`` metrics via the metric_analyzers registry.
+    Visual artifacts (confusion_matrix, tSNE, calibration) stay in
+    ``mode=infer``.
+
+    Consistency contract
+    --------------------
+    Before running, ``run_eval`` reads ``checkpoint["eval_snapshot"]`` (embedded
+    by :class:`EvalSnapshotMixin` during training) and compares it to the
+    current ``cfg.dataset``. Mismatches either warn or raise depending on
+    ``cfg.eval.strict_snapshot``. Checkpoints without a snapshot (older
+    template versions) degrade to a warning regardless of the strict flag.
+
+    MLflow run
+    ----------
+    A new flat MLflow run is created. It is tagged with ``run_kind=eval``,
+    ``parent_run_id``, ``checkpoint_sha256``, ``split_seed``, ``dataset_target``,
+    ``method_target`` so downstream aggregation can filter by these fields.
+    """
+    from hydra._internal.utils import _locate
+
+    from src.inference.metric_analyzers import run_metric_analyzers
+    from src.inference.pipeline import predict_and_aggregate
+    from src.methods._eval_snapshot_mixin import (
+        compare_eval_snapshot,
+        read_eval_snapshot,
+    )
+    from src.utils.mlflow_utils import (
+        compute_checkpoint_hash,
+        log_eval_metrics,
+    )
+
+    checkpoint_path = OmegaConf.select(cfg, "inference.checkpoint_path")
+    if not checkpoint_path:
+        raise ValueError(
+            "inference.checkpoint_path must be set for eval mode. "
+            "E.g.: python -m src.main mode=eval inference.checkpoint_path=<path>"
+        )
+
+    # --- Enforce consistency against the training snapshot ------------------
+    snapshot = read_eval_snapshot(checkpoint_path)
+    current = {
+        "dataset_target": OmegaConf.select(cfg, "dataset._target_", default=None),
+        "split_seed": OmegaConf.select(cfg, "dataset.split_seed", default=None),
+        "val_split": OmegaConf.select(cfg, "dataset.val_split", default=None),
+        "test_split": OmegaConf.select(cfg, "dataset.test_split", default=None),
+        "method_target": OmegaConf.select(cfg, "method._target_", default=None),
+    }
+    strict = bool(OmegaConf.select(cfg, "eval.strict_snapshot", default=False))
+
+    if snapshot is None:
+        log.warning(
+            "Checkpoint has no eval_snapshot (older template version?). "
+            "Re-evaluation consistency cannot be verified. "
+            "Tag 'snapshot_status=unknown' will be recorded."
+        )
+        snapshot_status = "unknown"
+    else:
+        diffs = compare_eval_snapshot(snapshot, current)
+        if diffs:
+            msg = "Eval snapshot mismatch vs current cfg: " + ", ".join(
+                f"{k}: snapshot={s!r} current={c!r}" for k, (s, c) in diffs.items()
+            )
+            if strict:
+                raise RuntimeError(
+                    msg + " (strict_snapshot=true). Re-run with "
+                    "eval.strict_snapshot=false to downgrade to a warning."
+                )
+            log.warning(msg)
+            snapshot_status = "mismatch"
+        else:
+            log.info("Eval snapshot matches current cfg — conditions verified.")
+            snapshot_status = "match"
+
+    # --- Load model from checkpoint -----------------------------------------
+    model_cls_target: str = cfg.method._target_
+    model_cls = _locate(model_cls_target)
+    model: pl.LightningModule = model_cls.load_from_checkpoint(checkpoint_path)
+    model.eval()
+
+    # --- Instantiate datamodule + logger ------------------------------------
+    datamodule: pl.LightningDataModule = hydra.utils.instantiate(cfg.dataset, _convert_="all")
+    logger = hydra.utils.instantiate(cfg.logger)
+
+    # --- Build a minimal eval trainer (no callbacks) ------------------------
+    trainer: pl.Trainer = hydra.utils.instantiate(
+        cfg.trainer,
+        logger=logger,
+        callbacks=[],
+    )
+
+    # --- Lineage tags on the eval run ---------------------------------------
+    parent_run_id = (snapshot or {}).get("mlflow_run_id")
+    log_tags({
+        "run_kind": "eval",
+        "parent_run_id": parent_run_id,
+        "checkpoint_sha256": compute_checkpoint_hash(checkpoint_path),
+        "snapshot_status": snapshot_status,
+        "split_seed": current["split_seed"],
+        "val_split": current["val_split"],
+        "test_split": current["test_split"],
+        "dataset_target": current["dataset_target"],
+        "method_target": current["method_target"],
+    })
+    log_config_to_run(cfg, logger)
+
+    # --- Run trainer.test (standard test_* metrics) -------------------------
+    # ckpt_path=None because model weights are already loaded via
+    # load_from_checkpoint — passing the path would trigger a redundant reload.
+    log.info(f"Running trainer.test() on checkpoint: {checkpoint_path}")
+    trainer.test(model, datamodule=datamodule, ckpt_path=None)
+    test_metrics: Dict[str, float] = {
+        k: float(v) for k, v in trainer.callback_metrics.items()
+    }
+
+    # --- Run scalar metric analyzers ----------------------------------------
+    enabled_metric_analyzers = list(
+        OmegaConf.select(cfg, "inference.metric_analyzers", default=[]) or []
+    )
+    analyzer_metrics: Dict[str, float] = {}
+    if enabled_metric_analyzers:
+        log.info(f"Running metric analyzers: {enabled_metric_analyzers}")
+        results = predict_and_aggregate(model, datamodule, cfg)
+        analyzer_metrics = run_metric_analyzers(
+            results, enabled=enabled_metric_analyzers, cfg=cfg
+        )
+        log_eval_metrics(analyzer_metrics, prefix="eval")
+
+    combined = {**test_metrics, **{f"eval/{k}": v for k, v in analyzer_metrics.items()}}
+    log.info(f"Evaluation complete | metrics={combined}")
+    return combined

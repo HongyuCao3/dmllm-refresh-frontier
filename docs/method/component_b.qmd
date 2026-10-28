@@ -1,0 +1,112 @@
+---
+title: "Component B"
+---
+
+> **Rename this page** to reflect the actual component (e.g., "Classifier Head", "Decoder", "Loss Module").
+
+## What — Model / Process
+
+- **Model type**: [e.g., linear classification head / regression head / structured output decoder]
+- **Process**: maps latent embedding from Component A → task-specific prediction + training signal
+- **Input contract**: tensor `h` of shape `[B × H]`, produced by Component A
+- **Output contract (train)**: scalar loss; **output contract (infer)**: `{"pred": [B], "prob": [B × C], "meta": {...}}`
+- **Key property**: Component B is the only module that touches the task labels `y`; Component A is label-agnostic
+
+## Why — Selection Rationale
+
+- **Primary reason**: [e.g., a single linear layer minimises overfitting when dataset is small; embedding quality from A captures non-linearity]
+- **Why not a deeper head**: adding layers duplicates capacity already in Component A, increasing overfitting risk
+- **Why not alternative A** *(e.g., SVM head)*: requires separate training step; breaks end-to-end gradient flow
+- **Why not alternative B** *(e.g., GP head)*: inference cost scales with training set size; unsuitable for large datasets
+- **Necessary condition**: Component A must produce linearly separable embeddings — validate with t-SNE analyzer
+- **When to reconsider**: if t-SNE shows non-linearly separable clusters, add one hidden layer to the head
+
+```{dot}
+//| label: fig-comp-b-overview
+//| fig-cap: "Component B: forward pass with train and infer output paths"
+//| fig-width: 6.5
+//| fig-height: 3.5
+digraph G {
+  bgcolor="transparent"
+  rankdir=TB
+  graph [ranksep=0.5, nodesep=0.5]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
+        shape=box, width=1.6, height=0.42]
+  edge [color="#6c757d", penwidth=1.4]
+
+  subgraph row1 {
+    rank=same
+    H [label="h  [B × H]", fillcolor="#375a7f"]
+    Y [label="y  [B]",     fillcolor="#375a7f"]
+  }
+  subgraph row2 {
+    rank=same
+    Lin [label="Linear  W, b"]
+  }
+  subgraph row3 {
+    rank=same
+    Logit [label="Logits  [B × C]"]
+    Sfmx  [label="Softmax  [B × C]"]
+  }
+  subgraph row4 {
+    rank=same
+    Loss [label="CE Loss (train)", fillcolor="#4a2040", color="#e74c3c"]
+    Out  [label="pred / prob (infer)", fillcolor="#1a4a3a", color="#00bc8c"]
+  }
+
+  H     -> Lin
+  Lin   -> Logit
+  Logit -> Loss  Y -> Loss
+  Logit -> Sfmx  -> Out
+}
+```
+
+<details>
+<summary><strong>How — Formulas and Internal Mechanism</strong></summary>
+
+**Linear projection** (no hidden layer):
+
+$$\text{logits} = h W^\top + b, \quad W \in \mathbb{R}^{C \times H},\ b \in \mathbb{R}^{C}$$
+
+**Training loss** (cross-entropy with optional label smoothing $\epsilon$):
+
+$$\mathcal{L} = -\frac{1}{B} \sum_{i=1}^{B}
+  \sum_{c=1}^{C} \tilde{y}_{ic} \log \hat{p}_{ic}, \qquad
+  \tilde{y}_{ic} = (1-\epsilon)\,\mathbf{1}[y_i = c] + \frac{\epsilon}{C}$$
+
+where $\hat{p}_{ic} = \text{softmax}(\text{logits}_i)_c$.
+
+**Inference output contract** (`predict_step`):
+
+```python
+return {
+    "pred": logits.argmax(dim=-1),       # [B]  — integer class index
+    "prob": logits.softmax(dim=-1),      # [B × C] — calibrated probabilities
+    "meta": {"ids": batch["id"], ...},   # pass-through metadata
+}
+```
+
+**Class-imbalance handling** (optional): pass `loss_weight` tensor of shape `[C]` to
+`nn.CrossEntropyLoss(weight=...)`. Weights are normalised to sum to 1.
+
+**Label smoothing** ($\epsilon > 0$): prevents over-confident predictions; useful when
+training data is noisy or when calibration matters downstream.
+
+**Initialisation**: Xavier uniform for $W$; zeros for $b$.
+
+**Config keys**: `method.output_dim` ($C$, auto-set from dataset), `method.label_smoothing`
+($\epsilon$, default 0.0), `method.loss_weight` (optional, default None).
+
+| Key | Default | Sensible range | Primary effect |
+|-----|---------|---------------|----------------|
+| `method.output_dim` | auto | n_classes | output space size |
+| `method.label_smoothing` | 0.0 | 0.0 – 0.2 | prediction confidence regularisation |
+| `method.loss_weight` | None | per-class floats | class-imbalance correction |
+
+```bash
+# Override example
+python -m src.main method.label_smoothing=0.1
+```
+
+</details>

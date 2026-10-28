@@ -1,0 +1,17 @@
+# @package _global_
+
+defaults:
+  - dataset: wine
+  - method: mlp
+  - trainer: default
+  - logger: mlflow
+  - mode: train
+  - optuna: default
+  - inference: default
+  - eval: default
+  - experiment: evaluation
+  - override hydra/launcher: basic
+  - _self_
+
+project_name: "research-template"
+seed: 42
