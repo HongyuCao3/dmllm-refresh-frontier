@@ -117,3 +117,22 @@ Lever map (written before the run):
 | Speedups out of ±20 %, Jaccard in range | Hardware cost profile differs (A100 vs RTX 6000 Ada); output behaviour matches | Report both; ask the user whether G1(ii) speed should be read on the same GPU type as the paper before proceeding |
 | Jaccard out of ±0.05 at some intervals | Image subset or decoding differs from the paper's | Check the per-image spread (5 vs 50 images, our seed-0 subset); if the gap is within subset variance, present to user; otherwise inspect settings |
 | Not monotone | Noise at neighbouring intervals (e.g. 8 vs 16, paper 0.482 vs 0.463) | Present the paired CI; the gate is frozen, the decision how to proceed is the user's |
+
+**G1 verdict: FAIL — (i) PASS, (ii) FAIL on one cell** (job 18513394, A100 80GB PCIe for all 350 rows, 50 images;
+preempted once at 270 rows and resumed via requeue; `results/phase1/mme_caption_frontier/g1_summary.json`).
+
+| Interval | speedup (paper) | Jaccard (paper) | Jaccard 95% CI over images | exact match | r |
+|---|---|---|---|---|---|
+| 1 | 1.36 (1.30) | 0.982 (0.987) | [0.961, 0.995] | 35/50 | 1.000 |
+| 2 | 2.47 (2.39) | **0.615 (0.666)** | [0.550, 0.679] | 6/50 | 0.502 |
+| 4 | 4.19 (4.10) | 0.553 (0.572) | [0.500, 0.606] | 0/50 | 0.253 |
+| 8 | 6.31 (6.44) | 0.501 (0.482) | [0.457, 0.547] | 0/50 | 0.130 |
+| 16 | 8.47 (8.85) | 0.459 (0.463) | [0.424, 0.495] | 0/50 | 0.067 |
+| 32 | 10.34 (11.29) | 0.432 (0.420) | [0.400, 0.467] | 0/50 | 0.035 |
+
+Full recompute 65.6 s/image (paper 71.9 s on RTX 6000 Ada). All speedups within ±20 %, both monotone, 5/6
+Jaccards within ±0.05. The miss is interval 2: |0.615 − 0.666| = 0.051 vs tolerance 0.05. Bootstrap (10,000
+resamples, seed 0) puts the paper's value inside our 95% CI at every interval; at interval 2 the per-image
+Jaccard is bimodal (6 images at 1.0, range 0.24–1.0, sd 0.24), so the CI half-width (±0.065) exceeds the frozen
+tolerance. Lever-map row hit: "Jaccard out of ±0.05 … within subset variance → present to user". The gate is
+frozen; how to read this is the user's decision (pending).

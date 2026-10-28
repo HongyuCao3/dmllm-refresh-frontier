@@ -1,0 +1,88 @@
+{
+ "gate": "G1",
+ "identity": {
+  "threshold=0.5 interval=1": "5/5",
+  "threshold=0.5 interval=4": "5/5",
+  "threshold=0.5 interval=32": "5/5",
+  "threshold=None interval=1": "5/5",
+  "threshold=None interval=4": "5/5",
+  "threshold=None interval=32": "5/5"
+ },
+ "identity_pass": true,
+ "frontier": {
+  "n": 50,
+  "full_gen_s_mean": 65.59,
+  "gpu": "NVIDIA A100 80GB PCIe",
+  "intervals": {
+   "1": {
+    "speedup": 1.36,
+    "paper_speedup": 1.3,
+    "speedup_ok": true,
+    "jaccard": 0.982,
+    "paper_jaccard": 0.987,
+    "jaccard_ok": true,
+    "exact_match": 35,
+    "gen_s_mean": 48.29,
+    "r_mean": 1.0
+   },
+   "2": {
+    "speedup": 2.47,
+    "paper_speedup": 2.39,
+    "speedup_ok": true,
+    "jaccard": 0.615,
+    "paper_jaccard": 0.666,
+    "jaccard_ok": false,
+    "exact_match": 6,
+    "gen_s_mean": 26.54,
+    "r_mean": 0.5023
+   },
+   "4": {
+    "speedup": 4.19,
+    "paper_speedup": 4.1,
+    "speedup_ok": true,
+    "jaccard": 0.553,
+    "paper_jaccard": 0.572,
+    "jaccard_ok": true,
+    "exact_match": 0,
+    "gen_s_mean": 15.67,
+    "r_mean": 0.2534
+   },
+   "8": {
+    "speedup": 6.31,
+    "paper_speedup": 6.44,
+    "speedup_ok": true,
+    "jaccard": 0.501,
+    "paper_jaccard": 0.482,
+    "jaccard_ok": true,
+    "exact_match": 0,
+    "gen_s_mean": 10.4,
+    "r_mean": 0.1295
+   },
+   "16": {
+    "speedup": 8.47,
+    "paper_speedup": 8.85,
+    "speedup_ok": true,
+    "jaccard": 0.459,
+    "paper_jaccard": 0.463,
+    "jaccard_ok": true,
+    "exact_match": 0,
+    "gen_s_mean": 7.74,
+    "r_mean": 0.0668
+   },
+   "32": {
+    "speedup": 10.34,
+    "paper_speedup": 11.29,
+    "speedup_ok": true,
+    "jaccard": 0.432,
+    "paper_jaccard": 0.42,
+    "jaccard_ok": true,
+    "exact_match": 0,
+    "gen_s_mean": 6.35,
+    "r_mean": 0.0348
+   }
+  },
+  "monotone_speedup": true,
+  "monotone_jaccard": true
+ },
+ "frontier_pass": false
+}
