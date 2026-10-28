@@ -1,0 +1,43 @@
+{
+ "job": 18510589,
+ "gpu": "NVIDIA A100-PCIE-40GB",
+ "n_samples": 5,
+ "verdict": "G1(i) PASS",
+ "cells": {
+  "ours threshold=0.5 interval=1": {
+   "identical": "5/5",
+   "gen_s_mean": 45.35,
+   "upstream_gen_s_mean": 45.43
+  },
+  "ours threshold=0.5 interval=4": {
+   "identical": "5/5",
+   "gen_s_mean": 15.63,
+   "upstream_gen_s_mean": 15.63
+  },
+  "ours threshold=0.5 interval=32": {
+   "identical": "5/5",
+   "gen_s_mean": 6.28,
+   "upstream_gen_s_mean": 6.27
+  },
+  "ours threshold=None interval=1": {
+   "identical": "5/5",
+   "gen_s_mean": 54.63,
+   "upstream_gen_s_mean": 54.6
+  },
+  "ours threshold=None interval=4": {
+   "identical": "5/5",
+   "gen_s_mean": 17.85,
+   "upstream_gen_s_mean": 17.85
+  },
+  "ours threshold=None interval=32": {
+   "identical": "5/5",
+   "gen_s_mean": 7.12,
+   "upstream_gen_s_mean": 7.12
+  },
+  "upstream_rerun threshold=0.5 interval=4": {
+   "identical": "5/5",
+   "gen_s_mean": 15.66,
+   "upstream_gen_s_mean": 15.63
+  }
+ }
+}

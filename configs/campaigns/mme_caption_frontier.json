@@ -1,0 +1,19 @@
+{
+  "name": "mme_caption_frontier",
+  "purpose": "Gate G1(ii): fixed-interval frontier on 50 MME images, settings of Faster but Different Tab. 3",
+  "task": {
+    "manifest": "/scratch/{acct}/data/dmllm_refresh/mme_caption/manifest.jsonl",
+    "n": 50,
+    "prompt": "Please describe the image in detail.",
+    "gen": {"steps": 128, "gen_length": 128, "block_length": 128, "stopping_criteria": ["<|eot_id|>"]}
+  },
+  "arms": [
+    {"name": "full", "policy": "full"},
+    {"name": "interval1", "policy": "interval", "k": 1, "threshold": 0.5},
+    {"name": "interval2", "policy": "interval", "k": 2, "threshold": 0.5},
+    {"name": "interval4", "policy": "interval", "k": 4, "threshold": 0.5},
+    {"name": "interval8", "policy": "interval", "k": 8, "threshold": 0.5},
+    {"name": "interval16", "policy": "interval", "k": 16, "threshold": 0.5},
+    {"name": "interval32", "policy": "interval", "k": 32, "threshold": 0.5}
+  ]
+}

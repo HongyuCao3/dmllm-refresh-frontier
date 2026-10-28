@@ -79,3 +79,41 @@ reported result):
   without threshold 8.89x). Interval 1 is 1.18x vs their 1.3x. Open: which threshold and which Jaccard
   definition (word set? token set?) the paper used. This decides the G1(ii) comparison settings and must be
   settled before Phase 1 runs; it is not decided here.
+
+## Phase 1 (started 2026-10-28)
+
+Faster but Different settings (read from arXiv 2607.29079, Sec. 4 and 6.2): prompt "Please describe the image
+in detail.", gen_length = block = steps = 128, **threshold 0.5** while the interval varies, deterministic
+decoding, RTX 6000 Ada, times exclude load and preprocessing. Their 50 images are a fixed-seed subset of 300 MME
+images that is not published. **Jaccard = over lowercased alphabetic word sets**, against the unaccelerated
+output (`use_fast_dllm=False`) of the same image. Our Phase 1 frontier uses these settings.
+
+Unified loop: `src/methods/refresh/loop.py` (copy of upstream's loop; only the refresh decision goes through a
+`RefreshPolicy`, `src/methods/refresh/policies.py`). G1(i) test: `slurm/phase1_g1_identity.sbatch` →
+`src/scripts/g1_identity.py`, 5 images, intervals 1/4/32, thresholds 0.5 and None.
+
+Lever map (written before the run):
+
+| Outcome | Meaning | Next action |
+|---|---|---|
+| Identical at all 6 (k, threshold) cells | Loop reproduces upstream; policies only change refresh timing | G1(ii) frontier campaign on 50 images |
+| Mismatch, and upstream rerun also mismatches itself | Run-to-run nondeterminism, not a loop bug | Report the rate; G1(i) cannot be token-exact as frozen; ask the user how to read the gate |
+| Mismatch, upstream rerun self-identical | Bug in the copy | Find first divergent step, fix, rerun |
+
+**G1(i) PASS** (job 18510589, A100 40GB, 27 min; `results/phase1/g1_identity/g1_identity_summary.json`): the
+unified loop is token-identical to upstream on 5/5 images in all 6 cells (interval 1/4/32 x threshold 0.5/None),
+with equal time (e.g. interval 4, threshold 0.5: 15.6 s both). The upstream rerun is 5/5 identical, so
+run-to-run nondeterminism on this path is 0/5. Lever-map row hit: first row → G1(ii) frontier campaign.
+
+G1(ii) frontier: `configs/campaigns/mme_caption_frontier.json` via `slurm/campaign.sbatch`
+(`src/scripts/run_campaign.py`), 50 images x {full, interval 1/2/4/8/16/32 at threshold 0.5}, A100 80GB pinned.
+Verdict: `python src/scripts/gate_check.py g1` → `results/phase1/mme_caption_frontier/g1_summary.json`.
+
+Lever map (written before the run):
+
+| Outcome | Meaning | Next action |
+|---|---|---|
+| G1 PASS | Our frontier reproduces the published one on our hardware and images | Freeze the frontier as the reference curve; start Phase 1 baselines (Elastic-Cache / dKV-Cache ports) and MathVerse frontier |
+| Speedups out of ±20 %, Jaccard in range | Hardware cost profile differs (A100 vs RTX 6000 Ada); output behaviour matches | Report both; ask the user whether G1(ii) speed should be read on the same GPU type as the paper before proceeding |
+| Jaccard out of ±0.05 at some intervals | Image subset or decoding differs from the paper's | Check the per-image spread (5 vs 50 images, our seed-0 subset); if the gap is within subset variance, present to user; otherwise inspect settings |
+| Not monotone | Noise at neighbouring intervals (e.g. 8 vs 16, paper 0.482 vs 0.463) | Present the paired CI; the gate is frozen, the decision how to proceed is the user's |
