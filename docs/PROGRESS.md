@@ -12,7 +12,8 @@ Authoritative run log, decisions and lever maps. Plan: `plans/research_plan_v2.m
 | Env `llada-v` | **built 2026-10-28** at `/scratch/hcao2/envs/llada-v`: torch 2.1.2+cu121, transformers 4.39.3, tokenizers 0.15.2; `llava` + Fast-dLLM hook + dLLM-Cache hook import OK on CPU (log `/scratch/hcao2/tmp/logs/setup_llada_v_20261028_1034.log`). GPU load not yet tested |
 | Weights | **downloaded 2026-10-28**: `GSAI-ML/LLaDA-V` (16 GB, snapshot `a10ba17`) and vision tower `google/siglip2-so400m-patch14-384` (4.3 GB, snapshot `e8e4872`) in `/scratch/hcao2/hf_cache`. llava loads the tower with its own `SigLipVisionModel`, not transformers' siglip2 |
 | Phase 0 smoke | **done 2026-10-28** (job 18490708, 11 min): upstream path runs; see "Phase 0 smoke" below |
-| Phases 1–5 | not started |
+| Phase 1 | G1 PASS with recorded deviation (2026-10-28): unified loop token-identical to upstream; MME frontier reproduced. Baselines (Elastic-Cache, dKV-Cache ports) and MathVerse frontier not started |
+| Phases 2–5 | not started |
 
 ## Decisions (user)
 
@@ -21,6 +22,7 @@ Authoritative run log, decisions and lever maps. Plan: `plans/research_plan_v2.m
 | 2026-10-27 | Repetition: deterministic decoding, one run per arm, paired bootstrap `Δ [95% CI] (n)` over samples + paired tests (McNemar / Wilcoxon, Holm over anchors). Appendix: 50 samples × 3 sampling seeds (temperature 0.5), the sign of Δ must agree in all three. Recorded as a project exception in `.claude/global.md` |
 | 2026-10-27 | Gates frozen: G1 token-identical to upstream at interval 1 / 4 / 32, speedup ±20% relative and Jaccard ±0.05 of the published table, both monotone; G2 top 20% cells ≥ 50% of error; G3 oracle ≥ 40% lower wall-clock on ≥ 2 anchors; G4 ≥ 25% on ≥ 2 anchors, Holm-significant, ≥ 50% of oracle gain |
 | 2026-10-27 | Matched quality (proposed with the gates, accepted): not significantly below the anchor and within 1 accuracy point (or 0.01 Jaccard) |
+| 2026-10-28 | **G1 accepted as PASS with a recorded deviation**: interval-2 Jaccard 0.615 vs paper 0.666 misses the ±0.05 tolerance by 0.001; the paper's value lies inside our 95% bootstrap CI at every interval, and the paper's 50-image subset is unpublished. Thresholds unchanged. The 50-image frontier (`results/phase1/mme_caption_frontier/g1_summary.json`) is the reference curve |
 
 ## Findings so far (setup)
 
@@ -135,4 +137,5 @@ Jaccards within ±0.05. The miss is interval 2: |0.615 − 0.666| = 0.051 vs tol
 resamples, seed 0) puts the paper's value inside our 95% CI at every interval; at interval 2 the per-image
 Jaccard is bimodal (6 images at 1.0, range 0.24–1.0, sd 0.24), so the CI half-width (±0.065) exceeds the frozen
 tolerance. Lever-map row hit: "Jaccard out of ±0.05 … within subset variance → present to user". The gate is
-frozen; how to read this is the user's decision (pending).
+frozen; how to read this is the user's decision: **accepted as PASS with a recorded deviation (2026-10-28,
+Decisions table)**.
