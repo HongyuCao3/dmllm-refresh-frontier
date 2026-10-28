@@ -3,14 +3,14 @@
 Authoritative run log, decisions and lever maps. Plan: `plans/research_plan_v2.md`. Rules: `.claude/research.md`,
 `.claude/cluster.md`. Newest entries at the bottom of each section.
 
-## Status (2026-10-27)
+## Status (2026-10-28)
 
 | Plan item | Status |
 |---|---|
 | Router + rules | done (commit `9ced305`): `CLAUDE.md` project statement and "Where the project lives"; `.claude/cluster.md`; `.claude/research.md` |
 | Third-party code | done: 5 clones at pinned commits, `third_party/MANIFEST.md` |
-| Env `llada-v` | scripts written (`scripts/setup_env.sh`, `requirements-llada-v.txt`), **not built**. The run was blocked by the auto-mode permission check; the user runs it. Pins inferred from upstream (`tokenizers~=0.15.2` → transformers 4.39.3, torch 2.1.2 cu121), untested |
-| Weights | `scripts/download_weights.sh` written, **not run**. `GSAI-ML/LLaDA-V` is not yet in `/scratch/hcao2/hf_cache` |
+| Env `llada-v` | **built 2026-10-28** at `/scratch/hcao2/envs/llada-v`: torch 2.1.2+cu121, transformers 4.39.3, tokenizers 0.15.2; `llava` + Fast-dLLM hook + dLLM-Cache hook import OK on CPU (log `/scratch/hcao2/tmp/logs/setup_llada_v_20261028_1034.log`). GPU load not yet tested |
+| Weights | **downloaded 2026-10-28**: `GSAI-ML/LLaDA-V` (16 GB, snapshot `a10ba17`) and vision tower `google/siglip2-so400m-patch14-384` (4.3 GB, snapshot `e8e4872`) in `/scratch/hcao2/hf_cache`. llava loads the tower with its own `SigLipVisionModel`, not transformers' siglip2 |
 | Phase 0 smoke | not started |
 | Phases 1–5 | not started |
 
@@ -35,8 +35,7 @@ Authoritative run log, decisions and lever maps. Plan: `plans/research_plan_v2.m
 
 ## Next steps
 
-1. User: `bash scripts/setup_env.sh && bash scripts/download_weights.sh` (CPU, ~30 min + download). Fix pins if
-   the import check fails.
+1. ~~Env + weights~~ done 2026-10-28.
 2. Phase 0 smoke (`slurm/`): upstream full recompute + interval 32 on 5 MME images, A100. Measure model load,
    N, per-step time, seconds per sample; replace the runtime estimates in `.claude/cluster.md` and the plan.
 3. Unified generation loop skeleton with a `RefreshPolicy` interface; token-identity test against upstream
