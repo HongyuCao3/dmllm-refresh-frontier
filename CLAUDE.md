@@ -28,6 +28,7 @@ If rules conflict, follow .claude/global.md, and flag the conflict to the user.
 | Path | What |
 |---|---|
 | `plans/research_plan_v2.md` | The research plan. Authoritative for scope, baselines and phases |
+| `docs/PROGRESS.md` | Run log: status, user decisions, findings, next steps. Update after every job or decision |
 | `third_party/` | Upstream clones at pinned commits, git-ignored; `third_party/MANIFEST.md` lists them. **Read-only — never edit a file under it.** |
 | `requirements-llada-v.txt` | Pins of the `llada-v` env — **not** upstream's `train/requirements.txt` |
 | `scripts/setup_env.sh`, `scripts/download_weights.sh` | CPU-only setup, run on the interactive node |
