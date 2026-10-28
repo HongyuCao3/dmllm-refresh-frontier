@@ -56,3 +56,10 @@ desktop.ini
 .coverage
 htmlcov/
 .pytest_cache/
+
+# Third-party clones (pinned commits in third_party/MANIFEST.md)
+third_party/*/
+
+# Slurm job logs (keep the directory)
+slurm/logs/*
+!slurm/logs/.gitkeep

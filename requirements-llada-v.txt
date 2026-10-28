@@ -1,0 +1,32 @@
+# Pins for the llada-v env (/scratch/<account>/envs/llada-v), built by scripts/setup_env.sh.
+#
+# Not upstream's train/requirements.txt: that is a full pip freeze of a training box
+# (deepspeed, wandb, gradio, internal byted packages). This file covers the inference
+# path only: llava.model.builder -> LLaDA-V (SigLIP + projector + LLaDA-8B), its
+# Fast-dLLM hook and its dLLM-Cache hook.
+#
+# torch / torchvision are installed by setup_env.sh from the cu121 index, before this file.
+#
+# transformers: upstream leaves it unpinned but pins tokenizers~=0.15.2, which caps
+# transformers at 4.39.x (4.40 requires tokenizers>=0.19). 4.39.3 has the sdpa path and
+# the is_flash_attn_* helpers that modeling_llada.py imports.
+transformers==4.39.3
+tokenizers==0.15.2
+accelerate==0.29.1
+peft==0.9.0
+sentencepiece==0.1.99
+einops==0.6.1
+einops-exts==0.0.4
+timm==0.9.16
+open_clip_torch==2.24.0
+safetensors
+huggingface_hub<0.26
+hf_transfer
+# torch 2.1 wheels are built against numpy 1.x
+numpy<2
+scipy
+scikit-learn
+pillow
+requests
+shortuuid
+ftfy
