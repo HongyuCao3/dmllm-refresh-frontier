@@ -45,6 +45,12 @@ so diagnostics request the 80GB card.
 | generation / frontier runs | `--gpus a100:1` |
 | replacement probe, oracle, anything holding two KV copies | `--gpus a100:1 --constraint gpu_a100_80gb` |
 
+**Measured (Phase 0 smoke, job 18490708, A100 80GB PCIe, MME caption, gen_length = steps = 128):** model
+load 27 s; prompt length N = 1.0–3.7k (anyres visual tokens; typical ~3k); full recompute 20–79 s/sample
+(mean 58 s); Fast-dLLM interval 1 49 s, interval 32 6.6 s; peak memory 31 GB (full), 27 GB (Fast-dLLM).
+A 40GB card holds one KV copy; two copies at N ≈ 3.7k should still fit 80GB. Source:
+`results/phase0/smoke/smoke_summary.json`.
+
 **Wall-clock comparisons run on one GPU type.** Every row of a speed–quality table comes from the same
 `--constraint`, and the sbatch header names it. A40 / L40S / A100 numbers are never mixed in one table.
 

@@ -30,3 +30,5 @@ pillow
 requests
 shortuuid
 ftfy
+# benchmark prep (src/scripts/prepare_mme.py): read the HF parquet shards
+pyarrow<18
