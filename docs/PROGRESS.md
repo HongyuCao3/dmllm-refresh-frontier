@@ -12,9 +12,10 @@ Authoritative run log, decisions and lever maps. Plan: `plans/research_plan_v2.m
 | Env `llada-v` | **built 2026-10-28** at `/scratch/hcao2/envs/llada-v`: torch 2.1.2+cu121, transformers 4.39.3, tokenizers 0.15.2; `llava` + Fast-dLLM hook + dLLM-Cache hook import OK on CPU (log `/scratch/hcao2/tmp/logs/setup_llada_v_20261028_1034.log`); GPU load verified in the Phase 0 smoke. `pyarrow<18` added for benchmark prep |
 | Weights | **downloaded 2026-10-28**: `GSAI-ML/LLaDA-V` (16 GB, snapshot `a10ba17`) and vision tower `google/siglip2-so400m-patch14-384` (4.3 GB, snapshot `e8e4872`) in `/scratch/hcao2/hf_cache`. llava loads the tower with its own `SigLipVisionModel`, not transformers' siglip2 |
 | Phase 0 smoke | **done 2026-10-28** (job 18490708, 11 min): upstream path runs; see "Phase 0 smoke" below |
-| Phase 1 | G1 PASS with recorded deviation (2026-10-28): unified loop token-identical to upstream; MME frontier reproduced. Bad-case analysis of the frontier done (Obs 1, 2026-10-29). MathVerse frontier: settings pending. Elastic-Cache / dKV-Cache ports deferred until G2 / G3 (user, 2026-10-29) |
+| Phase 1 | G1 PASS with recorded deviation (2026-10-28): unified loop token-identical to upstream; MME frontier reproduced. Bad-case analysis of the frontier done (Obs 1, 2026-10-29). MathVerse frontier (Exp 4): 300-problem array running (job 18603291), interim at n = 126 recorded below. Elastic-Cache / dKV-Cache ports deferred until G2 / G3 (user, 2026-10-29) |
 | Docs | Quarto site filled 2026-10-29: Exp 1–3, Obs 1, claims C 1–C 5, task definition, method (loop), dashboard. `cd docs && quarto render` |
-| Phases 2–5 | not started |
+| Phase 2 | Exp 5 replacement-error probe on 50 MME images running (job 18601279, 44 / 50 done at 2026-10-29 ~1.7 h in) |
+| Phases 3–5 | not started |
 
 ## Decisions (user)
 
@@ -88,6 +89,12 @@ with `RefreshPolicy` (G1(i)); `src/scripts/gate_check.py g1`; MME frontier (G1(i
 
 Order set by the user on 2026-10-29: (1) MathVerse frontier, (2) Phase 2 error map with D3 / D5 first;
 ports (items 2–3 below) wait until G2 / G3.
+
+State on 2026-10-29 (both jobs running): when the probe ends, run `python src/scripts/analyze_probe.py` (a
+background waiter does this), write the Exp 5 page and read the result against the Exp 5 lever map. When the
+MathVerse array ends, score it and read it against the 300-problem lever map. If the interim pattern holds (no
+accuracy loss up to k = 32), no lever-map row fits; that case goes to the user (see "Interim, n = 126" under Exp 4),
+gates and lever maps stay unchanged.
 
 Remaining Phase 1 work (plan: frontier + baselines on captioning and MathVerse):
 
@@ -270,6 +277,25 @@ Lever map (written before the run):
 
 300-problem array: job 18603291 (6 shards, `sbatch --array=0-5 slurm/campaign.sbatch
 configs/campaigns/mathverse_vd_frontier.json`). Score: `python src/scripts/score_mathverse.py mathverse_vd_frontier`.
+
+**Interim, n = 126 of 300** (2026-10-29, ~1.1 h into the array; partial shards, not a reported result, CIs too
+wide to read a lever-map row):
+
+| Arm | Accuracy | Speedup | Δ vs full [95% CI] | lost / gained | McNemar p |
+|---|---|---|---|---|---|
+| full | 30.2% | 1.0× | — | — | — |
+| k = 2 | 29.4% | 4.1× | −0.8 [−2.4, 0.0] | 1 / 0 | 1.0 |
+| k = 4 | 27.8% | 6.2× | −2.4 [−5.6, 0.0] | 3 / 0 | 0.25 |
+| k = 8 | 30.2% | 8.5× | 0.0 [−4.0, +4.0] | 3 / 3 | 1.0 |
+| k = 16 | 31.0% | 10.4× | +0.8 [−3.2, +4.8] | 3 / 4 | 1.0 |
+| k = 32 | 31.0% | 11.6× | +0.8 [−4.0, +5.6] | 4 / 5 | 1.0 |
+
+By type: multiple choice 38–42%, free-form 10–14%, in every arm. Reading if it holds at n = 300: fixed interval
+loses no accuracy even at k = 32, so accuracy leaves no room for a better schedule on this task and G3 cannot pass
+here. Neither "flat and low (< 15%)" nor "k = 2–8 flat, room at k ≥ 16" fits: full is at 30%, and k ≥ 16 does
+not drop either. Options to put to the user then: a setting more sensitive to staleness (longer generation,
+semi-autoregressive blocks < gen_length, another task), or a search for the k where accuracy starts to drop
+(k > 32).
 
 **Probe smoke** (job 18600727, 2 images): 83 s (N = 1042) and 115 s (N = 3715) per image; full probe job 18601279
 (50 images, ~1.4 h). Smoke-level hints only (n = 2): flips grow toward late steps, the deep bands 16–31 hold ~80% of
