@@ -1,0 +1,129 @@
+{
+ "campaign": "mathverse_vd_frontier",
+ "n": 300,
+ "gpu": "NVIDIA A100 80GB PCIe",
+ "n_prompt_mean": 2336.5,
+ "unscorable_free_form": 0,
+ "arms": {
+  "full": {
+   "accuracy": 0.3033,
+   "n_correct": 91,
+   "gen_s_mean": 99.97,
+   "speedup": 1.0,
+   "r_mean": 1.0,
+   "out_tokens_mean": 255.0,
+   "hit_length_cap": 300
+  },
+  "interval2": {
+   "accuracy": 0.2967,
+   "n_correct": 89,
+   "gen_s_mean": 24.52,
+   "speedup": 4.08,
+   "r_mean": 0.502,
+   "out_tokens_mean": 255.0,
+   "hit_length_cap": 300,
+   "delta_vs_full": -0.0067,
+   "delta_ci95": [
+    -0.0233,
+    0.01
+   ],
+   "lost": 4,
+   "gained": 2,
+   "mcnemar_p": 0.6875
+  },
+  "interval4": {
+   "accuracy": 0.28,
+   "n_correct": 84,
+   "gen_s_mean": 16.22,
+   "speedup": 6.16,
+   "r_mean": 0.253,
+   "out_tokens_mean": 254.7,
+   "hit_length_cap": 299,
+   "delta_vs_full": -0.0233,
+   "delta_ci95": [
+    -0.05,
+    0.0
+   ],
+   "lost": 11,
+   "gained": 4,
+   "mcnemar_p": 0.1185
+  },
+  "interval8": {
+   "accuracy": 0.3,
+   "n_correct": 90,
+   "gen_s_mean": 11.89,
+   "speedup": 8.41,
+   "r_mean": 0.1288,
+   "out_tokens_mean": 255.0,
+   "hit_length_cap": 300,
+   "delta_vs_full": -0.0033,
+   "delta_ci95": [
+    -0.0333,
+    0.0233
+   ],
+   "lost": 10,
+   "gained": 9,
+   "mcnemar_p": 1.0
+  },
+  "interval16": {
+   "accuracy": 0.3067,
+   "n_correct": 92,
+   "gen_s_mean": 9.6,
+   "speedup": 10.41,
+   "r_mean": 0.0666,
+   "out_tokens_mean": 255.0,
+   "hit_length_cap": 300,
+   "delta_vs_full": 0.0033,
+   "delta_ci95": [
+    -0.03,
+    0.0367
+   ],
+   "lost": 12,
+   "gained": 13,
+   "mcnemar_p": 1.0
+  },
+  "interval32": {
+   "accuracy": 0.3067,
+   "n_correct": 92,
+   "gen_s_mean": 8.31,
+   "speedup": 12.02,
+   "r_mean": 0.0356,
+   "out_tokens_mean": 255.0,
+   "hit_length_cap": 300,
+   "delta_vs_full": 0.0033,
+   "delta_ci95": [
+    -0.03,
+    0.0367
+   ],
+   "lost": 13,
+   "gained": 14,
+   "mcnemar_p": 1.0
+  }
+ },
+ "accuracy_by_type": {
+  "full": {
+   "multi-choice": 0.4277,
+   "free-form": 0.1339
+  },
+  "interval2": {
+   "multi-choice": 0.4335,
+   "free-form": 0.1102
+  },
+  "interval4": {
+   "multi-choice": 0.4046,
+   "free-form": 0.1102
+  },
+  "interval8": {
+   "multi-choice": 0.4162,
+   "free-form": 0.1417
+  },
+  "interval16": {
+   "multi-choice": 0.4393,
+   "free-form": 0.126
+  },
+  "interval32": {
+   "multi-choice": 0.4393,
+   "free-form": 0.126
+  }
+ }
+}

@@ -12,7 +12,7 @@ Authoritative run log, decisions and lever maps. Plan: `plans/research_plan_v2.m
 | Env `llada-v` | **built 2026-10-28** at `/scratch/hcao2/envs/llada-v`: torch 2.1.2+cu121, transformers 4.39.3, tokenizers 0.15.2; `llava` + Fast-dLLM hook + dLLM-Cache hook import OK on CPU (log `/scratch/hcao2/tmp/logs/setup_llada_v_20261028_1034.log`); GPU load verified in the Phase 0 smoke. `pyarrow<18` added for benchmark prep |
 | Weights | **downloaded 2026-10-28**: `GSAI-ML/LLaDA-V` (16 GB, snapshot `a10ba17`) and vision tower `google/siglip2-so400m-patch14-384` (4.3 GB, snapshot `e8e4872`) in `/scratch/hcao2/hf_cache`. llava loads the tower with its own `SigLipVisionModel`, not transformers' siglip2 |
 | Phase 0 smoke | **done 2026-10-28** (job 18490708, 11 min): upstream path runs; see "Phase 0 smoke" below |
-| Phase 1 | G1 PASS with recorded deviation (2026-10-28): unified loop token-identical to upstream; MME frontier reproduced. Bad-case analysis of the frontier done (Obs 1, 2026-10-29). MathVerse frontier (Exp 4): 300-problem array running (job 18603291), interim at n = 126 recorded below. Elastic-Cache / dKV-Cache ports deferred until G2 / G3 (user, 2026-10-29) |
+| Phase 1 | G1 PASS with recorded deviation (2026-10-28): unified loop token-identical to upstream; MME frontier reproduced. Bad-case analysis of the frontier done (Obs 1, 2026-10-29). MathVerse frontier (Exp 4) **done 2026-10-29** (job 18603291, n = 300): no accuracy loss at any k up to 32; no lever-map row fits, decision with the user. Elastic-Cache / dKV-Cache ports deferred until G2 / G3 (user, 2026-10-29) |
 | Docs | Quarto site filled 2026-10-29: Exp 1–3, Obs 1, claims C 1–C 5, task definition, method (loop), dashboard. `cd docs && quarto render` |
 | Phase 2 | Exp 5 done 2026-10-29 (job 18601279): **G2 PASS on captions** (60.8%); MathVerse not probed. Page `docs/experiments/exp5_replacement_error_map.qmd` |
 | Phases 3–5 | not started |
@@ -90,7 +90,7 @@ with `RefreshPolicy` (G1(i)); `src/scripts/gate_check.py g1`; MME frontier (G1(i
 Order set by the user on 2026-10-29: (1) MathVerse frontier, (2) Phase 2 error map with D3 / D5 first;
 ports (items 2–3 below) wait until G2 / G3.
 
-State on 2026-10-29 (both jobs running): when the probe ends, run `python src/scripts/analyze_probe.py` (a
+State on 2026-10-29 (superseded: both jobs finished, Exp 5 recorded; Exp 4 result below, open decision with the user): when the probe ends, run `python src/scripts/analyze_probe.py` (a
 background waiter does this), write the Exp 5 page and read the result against the Exp 5 lever map. When the
 MathVerse array ends, score it and read it against the 300-problem lever map. If the interim pattern holds (no
 accuracy loss up to k = 32), no lever-map row fits; that case goes to the user (see "Interim, n = 126" under Exp 4),
@@ -313,3 +313,34 @@ page `docs/experiments/exp5_replacement_error_map.qmd`):
 - Rows hit: "G2 met" (Phase 3 oracle on concentrated cells) and "groups differ" (group-wise refresh). Proposed
   first candidate: text prompt every step + visual every k (text refresh estimated ~2% of a prompt refresh).
   Open: C 2 needs G2 on MathVerse too, and the interim Exp 4 shows no accuracy loss to recover there.
+
+## Exp 4 — result (2026-10-29)
+
+Job 18603291 (6 shards, A100 80GB PCIe, 2 h 17 min – 2 h 35 min each, all COMPLETED). Scored with
+`src/scripts/score_mathverse.py mathverse_vd_frontier` → `results/phase1/mathverse_vd_frontier/accuracy_summary.json`.
+n = 300 (173 multiple choice / 127 free-form), paired over problems.
+
+| Arm | Accuracy | gen s | Speedup | r | Δ vs full [95% CI] | lost / gained | McNemar p |
+|---|---|---|---|---|---|---|---|
+| full | 30.3% (91) | 100.0 | 1.0× | 1.000 | — | — | — |
+| k = 2 | 29.7% (89) | 24.5 | 4.1× | 0.502 | −0.7 [−2.3, +1.0] | 4 / 2 | 0.69 |
+| k = 4 | 28.0% (84) | 16.2 | 6.2× | 0.253 | −2.3 [−5.0, 0.0] | 11 / 4 | 0.12 |
+| k = 8 | 30.0% (90) | 11.9 | 8.4× | 0.129 | −0.3 [−3.3, +2.3] | 10 / 9 | 1.0 |
+| k = 16 | 30.7% (92) | 9.6 | 10.4× | 0.067 | +0.3 [−3.0, +3.7] | 12 / 13 | 1.0 |
+| k = 32 | 30.7% (92) | 8.3 | 12.0× | 0.036 | +0.3 [−3.0, +3.7] | 13 / 14 | 1.0 |
+
+- **Fixed interval loses no significant accuracy up to k = 32.** The k = 4 dip (−2.3, p = 0.12) does not
+  recur at k ≥ 8: noise, not a trend. Multiple choice 40–44%, free-form 11–14% in every arm.
+- **Staleness changes answers, not accuracy**: discordant problems grow from 6 (k = 2) to 27 (k = 32), but lost ≈
+  gained at every k ≥ 8.
+- Every output fills 256 positions (repetition padding, then "The answer is …"), as in the pilot.
+- **Wall-clock is linear in r with a large floor** (fit over the 5 cached arms, max residual 0.22 s):
+  gen s ≈ 7.3 + 34.5 r. The floor is the reuse steps, which recompute all 256 answer positions (block = gen_length).
+  Refresh share of time: 71% at k = 2, 54% at 4, 37% at 8, 15% at 32. Captions: 4.8 + 43.2 r, 24% at k = 32.
+- **Consequence for G3 on this setting**: the cheapest fixed interval at full accuracy is k = 32 (8.3 s). Even
+  r → 0 at that accuracy saves at most 12%, below the 40% of G3. Anchors k = 2 / 4 / 8 are not distinct quality
+  levels here.
+- Lever-map row hit: **none** ("k = 2–8 flat, room at k ≥ 16" fails because k ≥ 16 does not drop either; "flat
+  and low" fails because full is 30%, not < 15%). Gates and lever maps unchanged; next setting is the user's
+  decision (options: k > 32 sweep; semi-AR blocks < gen_length; another task or longer generation).
+
