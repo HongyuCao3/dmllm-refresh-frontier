@@ -197,3 +197,80 @@ Jaccard is bimodal (6 images at 1.0, range 0.24–1.0, sd 0.24), so the CI half-
 tolerance. Lever-map row hit: "Jaccard out of ±0.05 … within subset variance → present to user". The gate is
 frozen; how to read this is the user's decision: **accepted as PASS with a recorded deviation (2026-10-28,
 Decisions table)**.
+
+## Exp 4 — MathVerse frontier (started 2026-10-29)
+
+Settings (user, 2026-10-29): MathVerse testmini **vision-dominant**, 300 problems (seed 0 of 788;
+`src/scripts/prepare_mathverse.py` → `/scratch/hcao2/data/dmllm_refresh/mathverse_vision_dominant/`, 173 multiple
+choice / 127 free-form), upstream prompt (format-prompt, `query_cot`, " /think"), **gen_length = steps = block =
+256**, threshold 0.5, arms full + k ∈ {2, 4, 8, 16, 32}. **Rule-based scorer** (no GPT-4o): option letter for
+multiple choice, numeric / normalized match for free-form, spot-checked by hand. k = 1 is left out: anchors and
+policies all use threshold 0.5, so it is not needed for G3 / G4, and it would add ~35% cost.
+
+Pilot first: `configs/campaigns/mathverse_vd_pilot.json` (first 8 problems), then
+`sbatch --array=0-5 slurm/campaign.sbatch configs/campaigns/mathverse_vd_frontier.json`. Estimate (guess, scaled
+from captions): ~260 s / problem → ~22 GPU-h for 300. Why it is needed: accuracy is the plan's primary quality
+metric, and Obs 1 showed caption Jaccard near k = 2 tracks trajectory, not quality, so the anchors for G3 / G4
+must come from this run.
+
+Lever map, pilot (written before the run):
+
+| Outcome | Meaning | Next action |
+|---|---|---|
+| Most full outputs end (eot) before 256 tokens with an extractable answer | Length fits think mode | Submit the 300-problem array with the measured time |
+| Most full outputs hit 256 without an answer | Reasoning truncated; accuracy would measure truncation | Ask the user: 512, or no-think mode |
+| Time per problem > 2× the estimate | Prompt longer than assumed | Re-estimate; ask before submitting > 40 GPU-h |
+
+Lever map, 300-problem frontier (written before the run):
+
+| Outcome | Meaning | Next action |
+|---|---|---|
+| Accuracy at k = 2–8 not significantly below full and within 1 point (McNemar) | Caching costs no accuracy up to k = 8 (C 5 confirmed): the room is at k ≥ 16 | Anchors move to where accuracy drops; Phase 2 / 3 target that region |
+| Accuracy drops monotonically from k = 2 with significant gaps | k = 2 / 4 / 8 are real quality anchors | Keep the planned anchors; Phase 2 error map on MathVerse |
+| Accuracy flat at every k, full included, and low (< 15%) | Task too hard at this length; no signal | Ask the user: other split, MathVista, or longer generation |
+| Non-monotone, CIs overlapping | Accuracy too noisy at n = 300 | Extend to all 788 problems before choosing anchors |
+
+## Exp 5 — Phase 2 replacement-error map on captions (started 2026-10-29)
+
+Probe `src/scripts/probe_replacement.py` (job `slurm/phase2_probe.sbatch`), 50 MME images, trajectory = unified
+loop at k = 1, threshold 0.5. At each step t, one cell of the prompt cache is replaced by its value from step
+t − s and the block forward is compared with the fresh-cache forward. With block = gen_length only the prompt can be
+stale, so D5 ("does local staleness spread to another group") reduces here to the visual-vs-text comparison of
+D1; it becomes its own test once a task uses block < gen_length.
+
+Cells: {visual, text} × layer bands {0–7, 8–15, 16–23, 24–31} × step, at ages s ∈ {1, 4}; plus whole prompt ×
+all layers at s ∈ {1, 2, 4, 8} for the D3 time profile. Per cell: top-1 flips among masked answer positions,
+mean KL, and whether the committed decision (transferred positions + tokens) changes. The probe also records
+decoding order (positions decoded per step). Estimate (guess): ~3 min / image, ~2.5 h for 50; smoke on 2 images
+first.
+
+**G2 as computed here** (frozen threshold, cell definition fixed before the run): cells = position group × layer
+band × step (2 × 4 × steps), error = top-1 flips summed over images, at age 4 (k = 4 anchor); G2 passes on
+captions if the top 20% of cells hold ≥ 50% of flips. Age 1 reported alongside.
+
+Lever map (written before the run):
+
+| Outcome | Meaning | Next action |
+|---|---|---|
+| Whole-prompt flips concentrated in early steps (first 20% of steps ≥ 50% of flips, D3) | Obs 1's early-split lever is real at the cache level | Static early-dense schedule (S1) vs fixed interval and same-budget random at matched r, on captions and MathVerse |
+| Visual and text groups differ ≥ 2× in flips per position (D1) | Groups need different refresh periods | Group-wise refresh (refresh text every step, visual every k, or the reverse) |
+| One layer band holds ≥ 50% of flips | Staleness matters in a few layers | Partial-layer refresh (close to Elastic-Cache's deep-layer idea: check overlap) |
+| G2 met | Error concentrated: an oracle has room | Phase 3 oracle on the concentrated cells |
+| Flips uniform over steps, groups and bands (G2 not met) | No static cell is cheap to skip | Bad-case analysis (user, 2026-10-29): look at which decisions flip and at token-count triggers, not an analysis paper |
+| Decision flips rare (< 5% of steps at age 4) while Jaccard drops 0.43 at k = 4 | Divergence comes from rare single flips that cascade | Target the few flip steps: online trigger on confidence margin of the committed tokens |
+
+**Pilot result** (job 18600102, A100 80GB PCIe, 8 problems; smoke only, not a reported result):
+- N = 1.4k–3.7k (mean 2.4k). Full 101 s / problem; k = 2 / 4 / 8 / 16 / 32: 23.5 / 16.4 / 13.7 / 10.5 / 8.8 s
+  (speedup 4.3× / 6.2× / 7.4× / 9.7× / 11.5×). 174 s / problem in all → ~14.5 GPU-h for 300.
+- Every output fills all 256 positions, but none is truncated: the model pads with repeated lines and always ends
+  with "The answer is …". No `</think>` tag appears. Lever-map row hit: "extractable answer" → array submitted.
+- Scorer checked by hand on all 48 rows; added a fix for multiple-choice answers given as option text
+  (e.g. "This is a function" → A). Pilot accuracy full 4/8, k = 2 4/8, k ≥ 4 2/8 (n = 8, no inference).
+- Degenerate repetition at k = 32 (e.g. "z = 40 \n 40 \n 40 …") still ends in the same final answer.
+
+300-problem array: job 18603291 (6 shards, `sbatch --array=0-5 slurm/campaign.sbatch
+configs/campaigns/mathverse_vd_frontier.json`). Score: `python src/scripts/score_mathverse.py mathverse_vd_frontier`.
+
+**Probe smoke** (job 18600727, 2 images): 83 s (N = 1042) and 115 s (N = 3715) per image; full probe job 18601279
+(50 images, ~1.4 h). Smoke-level hints only (n = 2): flips grow toward late steps, the deep bands 16–31 hold ~80% of
+flips, text positions flip 11–15× more per position than visual ones.

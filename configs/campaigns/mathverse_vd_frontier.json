@@ -1,0 +1,17 @@
+{
+  "name": "mathverse_vd_frontier",
+  "purpose": "Exp 4: fixed-interval frontier on MathVerse testmini vision-dominant (300, seed 0), think mode, accuracy anchors",
+  "task": {
+    "manifest": "/scratch/{acct}/data/dmllm_refresh/mathverse_vision_dominant/manifest.jsonl",
+    "n": 300,
+    "gen": {"steps": 256, "gen_length": 256, "block_length": 256, "stopping_criteria": ["<|eot_id|>"]}
+  },
+  "arms": [
+    {"name": "full", "policy": "full"},
+    {"name": "interval2", "policy": "interval", "k": 2, "threshold": 0.5},
+    {"name": "interval4", "policy": "interval", "k": 4, "threshold": 0.5},
+    {"name": "interval8", "policy": "interval", "k": 8, "threshold": 0.5},
+    {"name": "interval16", "policy": "interval", "k": 16, "threshold": 0.5},
+    {"name": "interval32", "policy": "interval", "k": 32, "threshold": 0.5}
+  ]
+}

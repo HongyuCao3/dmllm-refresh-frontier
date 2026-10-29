@@ -12,7 +12,13 @@
 # -> 2.5 h generation, ~2.9 h wall. --time 4:00; under the 4 GPU-hour line. Other campaigns: state their own
 # estimate in the submission message (gen_length and sample count change it).
 #
+# Runtime, mathverse_vd_frontier (300 problems x 6 arms, gen_length = steps = 256, threshold 0.5), MEASURED in
+# pilot job 18600102 (8 problems, N = 1.4k-3.7k, mean 2.4k): full 101 s, intervals 2/4/8/16/32 23.5/16.4/13.7/
+# 10.5/8.8 s -> 174 s / problem -> ~14.5 GPU-h for 300, run as a 6-task array (~2.4 h each, --time 4:00).
+#
 # Usage:  sbatch slurm/campaign.sbatch configs/campaigns/mme_caption_frontier.json
+#         sbatch --array=0-5 slurm/campaign.sbatch configs/campaigns/mathverse_vd_frontier.json
+#         (array: task i runs shard i of SLURM_ARRAY_TASK_COUNT, see run_campaign.py --num-shards)
 #SBATCH --job-name=campaign
 #SBATCH --partition=work1
 #SBATCH --gpus=a100:1
@@ -35,4 +41,8 @@ export PYTHONDONTWRITEBYTECODE=1
 cd /home/${ACCT}/dmllm-refresh-frontier
 nvidia-smi --query-gpu=name,memory.total --format=csv
 
-exec python src/scripts/run_campaign.py "$@"
+SHARD=()
+if [[ -n "${SLURM_ARRAY_TASK_ID:-}" ]]; then
+  SHARD=(--shard "${SLURM_ARRAY_TASK_ID}" --num-shards "${SLURM_ARRAY_TASK_COUNT}")
+fi
+exec python src/scripts/run_campaign.py "$@" "${SHARD[@]}"

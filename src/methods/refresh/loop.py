@@ -21,8 +21,12 @@ def attach(model):
 
 @torch.no_grad()
 def generate(hook, inputs_embeds, policy, steps=128, gen_length=128, block_length=128, threshold=None,
-             mask_id=126336, tokenizer=None, stopping_criteria=None):
-    """Returns (generated token ids [1, L], trace) where trace[k] = (t, block, i, refreshed, n_transferred)."""
+             mask_id=126336, tokenizer=None, stopping_criteria=None, probe=None):
+    """Returns (generated token ids [1, L], trace) where trace[k] = (t, block, i, refreshed, n_transferred).
+
+    `probe(t, cache, x_embeds, mask_index, block_start, block_end, n_tok)`, if given, is called after every
+    refresh forward with the fresh prompt cache; it must not modify its arguments (src/scripts/probe_replacement.py).
+    """
     lm = hook.model
     embed = lm.model.embed_tokens
     policy.reset()
@@ -71,6 +75,8 @@ def generate(hook, inputs_embeds, policy, steps=128, gen_length=128, block_lengt
                     outputs = lm.model(inputs_embeds=x_embeds, fast_dllm_cache=cache)
                     cache = hook._create_cache_slice(cache, block_start)
                     off = 0
+                    if probe is not None:
+                        probe(t, cache, x_embeds, mask_index, block_start, block_end, n_tok)
                 else:
                     outputs = lm.model(inputs_embeds=x_embeds[:, block_start:], fast_dllm_cache=cache)
                     off = block_start

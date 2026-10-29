@@ -5,9 +5,12 @@ FixedInterval(k). All arms of a sample run back to back (samples outer, arms inn
 hits every arm alike. Timing: one discarded warm-up per arm on the first sample, CUDA-synchronized clocks,
 generation time excludes model load and image preprocessing.
 
+Prompt: the manifest row's "question" if present (e.g. MathVerse), else the campaign's task prompt (captions).
+
 Writes /scratch/<acct>/outputs/dmllm_refresh/<campaign>/generations.jsonl, one line per (arm, sample) with
 tokens, text, gen_s and the refresh trace summary (forwards, refreshes, r = refreshes / forwards).
-Resumable: finished (arm, sample) pairs are skipped.
+With --num-shards S, shard i runs samples with sample_id % S == i and writes generations.shard<i>.jsonl
+(one Slurm array task per shard). Resumable: finished (arm, sample) pairs are skipped.
 """
 import argparse
 import json
@@ -27,19 +30,22 @@ ACCT = os.popen("id -un").read().strip()
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("campaign")
+    ap.add_argument("--shard", type=int, default=0)
+    ap.add_argument("--num-shards", type=int, default=1)
     args = ap.parse_args()
     cfg = json.load(open(args.campaign))
     task = cfg["task"]
     gen = task["gen"]
-    out = f"/scratch/{ACCT}/outputs/dmllm_refresh/{cfg['name']}/generations.jsonl"
+    suffix = f".shard{args.shard}" if args.num_shards > 1 else ""
+    out = f"/scratch/{ACCT}/outputs/dmllm_refresh/{cfg['name']}/generations{suffix}.jsonl"
     os.makedirs(os.path.dirname(out), exist_ok=True)
     done = {(r["arm"], r["sample_id"]) for r in map(json.loads, open(out))} if os.path.exists(out) else set()
-    samples = [json.loads(l) for l in open(task["manifest"].format(acct=ACCT))][: task["n"]]
+    samples = [s for s in (json.loads(l) for l in open(task["manifest"].format(acct=ACCT)))
+               if s["sample_id"] < task["n"] and s["sample_id"] % args.num_shards == args.shard]
 
     tokenizer, model, image_processor, load_s = llada_v.load()
     gpu = torch.cuda.get_device_name(0)
     print(f"model load {load_s:.1f}s on {gpu}", flush=True)
-    input_ids = llada_v.prompt_ids(tokenizer, task["prompt"])
     n_forward = []
     backbone_forward = model.model.forward
 
@@ -81,7 +87,9 @@ def main():
             for arm in arms:
                 if (arm["name"], s["sample_id"]) in done:
                     continue
-                embeds = embeds if embeds is not None else llada_v.embed(model, image_processor, input_ids, s["image"])
+                if embeds is None:
+                    input_ids = llada_v.prompt_ids(tokenizer, s.get("question", task.get("prompt")))
+                    embeds = llada_v.embed(model, image_processor, input_ids, s["image"])
                 if arm["name"] not in warmed:
                     run(arm, embeds)
                     warmed.add(arm["name"])
