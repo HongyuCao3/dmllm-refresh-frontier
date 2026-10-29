@@ -184,6 +184,6 @@ lies at larger k, where quality truly drops, and early-step refresh is the first
 ::: {.g-col-4}
 :::
 ::: {.g-col-4 .text-end}
-[Experiments dashboard $\rightarrow$](overview.qmd)
+[Exp 5 — Replacement-error map $\rightarrow$](exp5_replacement_error_map.qmd)
 :::
 :::

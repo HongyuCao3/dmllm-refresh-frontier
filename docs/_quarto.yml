@@ -46,6 +46,8 @@ website:
             href: experiments/exp3_mme_frontier.qmd
           - text: "Obs 1 — Frontier bad cases"
             href: experiments/obs1_frontier_bad_cases.qmd
+          - text: "Exp 5 — Replacement-error map (G2)"
+            href: experiments/exp5_replacement_error_map.qmd
       - section: "Reporting"
         contents:
           - text: "Run log (PROGRESS)"

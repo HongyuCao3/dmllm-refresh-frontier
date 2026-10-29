@@ -15,8 +15,8 @@ title: "Experiments Dashboard"
 | [Exp 2](exp2_loop_identity.qmd) | Is our refresh loop exact? | 1 · G1(i) | ✅ PASS | 30/30 token-identical, ≤ 0.2% time gap |
 | [Exp 3](exp3_mme_frontier.qmd) | Does the published frontier reproduce? | 1 · G1(ii) | ✅ PASS* | 6/6 speedups ±20%; 5/6 Jaccards ±0.05 |
 | [Obs 1](obs1_frontier_bad_cases.qmd) | Are low-agreement captions worse, and where do they split? | 1 | ✅ | Different, not worse; split decided early |
-| Exp 4 | Fixed-interval frontier on MathVerse (accuracy anchors) | 1 | ⬜ settings pending | — |
-| Exp 5 | Replacement-error map: when and where staleness flips tokens (D3, D5, D1) | 2 · G2 | ⬜ design | — |
+| Exp 4 | Fixed-interval frontier on MathVerse (accuracy anchors) | 1 | 🔄 running | Interim n = 126: no accuracy loss up to k = 32 |
+| [Exp 5](exp5_replacement_error_map.qmd) | Replacement-error map: when and where staleness flips tokens (D3, D1, bands) | 2 · G2 | ✅ PASS (captions) | Top 20% of cells hold 60.8%; text 21.7× per position, layers 16–31 78% |
 
 \* accepted by the user with one recorded deviation (k = 2 Jaccard off by 0.001, inside our 95% CI).
 

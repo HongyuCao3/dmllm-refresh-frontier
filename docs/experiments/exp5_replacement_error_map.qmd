@@ -1,0 +1,239 @@
+---
+title: "Exp 5 — Replacement-error map on captions"
+subtitle: "Where in the stale prompt cache does a stale value change the next decision: which step, which layers, visual or text positions?"
+date: 2026-10-29
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: false
+    html-math-method: katex
+---
+
+::: {.callout-note}
+## Summary
+- **G2 PASS on captions**: the top 20% of 952 (position group × layer band × step) cells hold **60.8%** of top-1
+  flips at age 4 (bar 50%).
+- **Most of that comes from where the cell is, not when.** If flips were spread evenly over steps inside each
+  (group, band), the top 20% would already hold 50.5%. Spread evenly over (group, band) inside each step, they would
+  hold 42.1%.
+- **Two static levers survive:**
+  - The ~61 text prompt positions (2% of the prompt) cause 30% of flips, 21.7× more per position than visual ones.
+  - Layers 16–31 cause 78% of flips.
+- **The early-dense schedule does not:** the first 20% of steps hold 36% of flips (bar 50%).
+:::
+
+---
+
+## What
+
+- Exp 3 and Obs 1 measured what fixed-interval refresh does to the *output*.
+- This page measures the *cause* one level down. At each step, take one piece of the prompt cache and make it stale.
+  Then count how often that changes the model's next prediction.
+- It answers the plan's diagnostics D3 (when), D1 (visual vs text) and the layer question. Together they decide G2.
+
+```{dot}
+//| label: fig-exp5-what
+//| fig-cap: "One fresh trajectory, one stale cell at a time, compared with the fresh forward"
+//| fig-width: 7
+//| fig-height: 2.6
+digraph G {
+  bgcolor="transparent"
+  rankdir=LR
+  graph [ranksep=0.45, nodesep=0.4]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
+        shape=box, width=1.5, height=0.42]
+  edge [color="#6c757d", penwidth=1.4]
+  T [label="k = 1 trajectory\n(fresh cache, step t)"]
+  S [label="Cache from step t − s", fillcolor="#4a2040", color="#e74c3c"]
+  M [label="Mixed cache:\none cell stale"]
+  F [label="Block forward"]
+  C [label="Flips / KL / decision\nvs fresh forward", fillcolor="#1a4a3a", color="#00bc8c"]
+  T -> M
+  S -> M
+  M -> F -> C
+}
+```
+
+---
+
+## Why
+
+- Plan, Phase 2: a refresh policy can only beat fixed interval if the error is concentrated. Then it can skip the
+  cells that do not matter and spend refreshes on the ones that do (G2).
+- The replacement error isolates the cache error from trajectory divergence. The trajectory is never changed, so
+  one stale cell is not confused with the cascade it would start. Obs 1 showed that a cascade, not a worse caption,
+  drives the Jaccard drop.
+- **This is a diagnostic, never a quality number** (`.claude/research.md`).
+
+---
+
+## Hypotheses
+
+Each row is one row of the lever map written in `docs/PROGRESS.md` before the run.
+
+| ID | Statement | How to falsify |
+|:--:|-----------|----------------|
+| **H1** | Cache error is front-loaded (D3; Obs 1's early split) | First 20% of steps hold < 50% of whole-prompt flips at age 4 |
+| **H2** | Visual and text positions need different refresh periods (D1) | Flips per position differ < 2× between the groups at age 4 |
+| **H3** | Staleness matters in one layer band | No band of 8 layers holds ≥ 50% of flips at age 4 |
+| **H4** | Error is concentrated (G2, frozen) | Top 20% of (group × band × step) cells hold < 50% of flips at age 4 |
+| **H5** | Divergence starts from rare decision changes | Committed decision changes at ≥ 5% of steps at age 4 |
+
+---
+
+## How
+
+**Data.** The 50 MME images of Exp 3 (same manifest), caption prompt, gen_length = steps = block = 128,
+threshold 0.5.
+- Prompt N = 3112 positions on average: 3051 visual, ~61 text (system + question).
+- 87–123 denoising steps per image (median 113). Threshold decoding stops early when it commits several tokens per step.
+
+**Probe** ([`probe_replacement.py`](../../src/scripts/probe_replacement.py)).
+- Run the unified loop at k = 1, so the prompt cache is fresh at every step. Keep the caches of the last 8 steps.
+- At step t, build a mixed cache: the fresh cache with one cell replaced by its value from step t − s (age s).
+- Run the block forward with the mixed cache and compare it with the fresh forward on the masked answer positions.
+  Three measures:
+  - top-1 flips: masked positions whose argmax token changes;
+  - mean KL(fresh ‖ stale) over those positions;
+  - decision change: whether the positions and tokens that the threshold rule would commit change.
+- Cells: {visual, text} × layer bands {0–7, 8–15, 16–23, 24–31} at ages s ∈ {1, 4}. For the time profile, also
+  the whole prompt × all layers at s ∈ {1, 2, 4, 8}.
+- The probe hooks into the loop through a `probe` callback that is inert when unset
+  ([`loop.py`](../../src/methods/refresh/loop.py)). Exp 2's identity therefore still holds.
+
+**G2 as computed** ([`analyze_probe.py`](../../src/scripts/analyze_probe.py); cell definition fixed before the run).
+- Cells are (group, band, step index): 2 × 4 × 119 step indices = 952. Each cell's error is top-1 flips summed
+  over images at age 4, the k = 4 anchor.
+- G2 passes if the top 20% of cells hold ≥ 50%. Two reference shares show where the concentration comes from:
+  - *structure only*: each (group, band) total spread evenly over its steps;
+  - *time only*: each step's total spread evenly over the 8 (group, band) pairs.
+
+**Run.** Job 18601279, A100 80GB, 1 h 54 min, 136 s per image. Summary:
+[`results/phase2/probe_mme/probe_summary.json`](../../results/phase2/probe_mme/probe_summary.json).
+
+---
+
+## Results
+
+### Error grows late, but decisions change most at the start
+
+![Left: top-1 flip rate among masked positions when the whole prompt cache is s steps stale, by relative step
+(10 bins). It falls slightly over the first half and roughly doubles over the second (age 4: 0.052 → 0.114). Right:
+share of steps whose committed decision changes. U-shaped, highest in the first fifth and the last bin (age 4:
+0.196, 0.178 vs 0.094–0.149 in between). Age 8's first bin is low because a cache 8 steps old exists only from
+step 8 on.](figures/exp5_d3_time_profile.png){width=95%}
+
+| Age s (steps stale) | 1 | 2 | 4 | 8 |
+|---|---|---|---|---|
+| Flip rate, first → last bin | 0.041 → 0.061 | 0.054 → 0.085 | 0.059 → 0.114 | 0.035 → 0.145 |
+| Steps with a changed decision | 7.7% | 10.7% | 13.5% | 16.4% |
+| Share of flips in the first 20% of steps | 38.4% | 37.7% | 36.0% | 30.0% |
+
+- In the first 20% of steps, the whole prompt causes 36.0% of flips at age 4. Those steps hold 35.9% of all masked
+  positions, so the early error matches the early workload: not concentrated.
+- The flip *rate* rises late, but by then only a few positions are still masked. Their decisions change in the last
+  bin again (17.8%).
+- The error grows with age, sublinearly: decision changes 7.7% → 16.4% from age 1 to age 8.
+
+### Deep layers and visual positions carry the volume; text positions carry the density
+
+![Top-1 flips at age 4, summed over 50 images, by layer band and position group. Layers 16–31 hold 78% of flips.
+Visual positions dominate the deep bands (layers 24–31: 37.6% of all flips). Text positions are near-even across
+bands.](figures/exp5_group_band_flips.png){width=80%}
+
+| (group, band) | Share of flips, age 4 |
+|---|---|
+| visual, L24–31 | 37.6% |
+| visual, L16–23 | 21.6% |
+| text, L16–23 | 10.6% |
+| text, L24–31 | 8.3% |
+| visual, L8–15 | 6.0% |
+| text, L8–15 | 5.8% |
+| text, L0–7 | 5.7% |
+| visual, L0–7 | 4.6% |
+
+- **By group:**
+  - Text positions are 2.0% of the prompt (61 of 3112) and cause 30.3% of flips (13,287 of 43,865).
+  - Per position that is **21.7×** the visual rate (25.1× at age 1).
+  - Text positions also cause 22.5% of decision changes (280 of 1,243).
+- **By band:** the deepest band holds 45.9% of flips, layers 16–31 together hold 78.1%. Age 1 gives the same
+  ordering (deepest band 44.2%).
+
+### G2: concentrated, mostly by structure
+
+| Quantity (age 4, 952 cells) | Top-20% share |
+|---|---|
+| **Measured** | **60.8%** → G2 PASS |
+| Structure only (even over steps within each group × band) | 50.5% |
+| Time only (even over group × band within each step) | 42.1% |
+
+- Of the 190 top cells:
+  - 160 are visual in layers 16–31, 30 are text in any band, and none is visual in layers 0–15.
+  - Their step indices span 7–76 (10th–90th percentile, median 36).
+- The time dimension adds 10 points on top of structure: some steps are worse than others, but no single phase of
+  decoding stands out.
+
+### Hypothesis assessment
+
+| ID | Verdict | Evidence |
+|:--:|:-------:|----------|
+| H1 | ❌ Rejected | First 20% of steps hold 36.0% of flips (< 50%); decision changes are front-loaded (19.6% vs 9–15% mid), flip rate is back-loaded |
+| H2 | ✅ Supported | Text / visual flips per position = 21.7× (≥ 2×) |
+| H3 | ❌ Rejected (narrowly) | Best single band 45.9% (< 50%); layers 16–31 together 78.1% |
+| H4 | ✅ G2 PASS (captions) | 60.8% ≥ 50%; structure alone gives 50.5% |
+| H5 | ❌ Rejected | Decisions change at 13.5% of steps at age 4 (≥ 5%) |
+
+---
+
+## Insights
+
+- **The concentration is static (structure-only share 50.5% of the measured 60.8%).** A fixed partial refresh can
+  in principle capture most of it: which positions and which layers to recompute, not when. That points to cell-wise
+  policies, not to time-varying schedules.
+- **The text prompt is a cheap lever (2% of positions, 30% of flips).** Refreshing only the ~61 text positions
+  costs a forward over 61 queries. Our estimate (not measured) is ~2% of a prompt refresh. Refreshing them at
+  every step and the visual part every k removes about a third of the age-4 error.
+- **Deep-layer refresh overlaps Elastic-Cache (layers 16–31: 78% of flips).** Its "refresh deep layers" idea
+  matches what we see. A deep-only policy would need a novelty argument against it, and the port is deferred until
+  G2 / G3.
+- **Obs 1's early split is not an early cache error (H1 rejected, 36%).** Captions split early because early
+  decisions change most often when the cache is stale (19.6% of steps at age 4). The per-position error is not
+  larger then. An early-dense schedule therefore buys decision stability, not error reduction, and the probe does not
+  favour it over even spacing.
+
+---
+
+## Takeaway
+
+If G2 holds on MathVerse too, the next step is the Phase 3 oracle on (group × band) cells. A text-every-step /
+visual-every-k policy is then the cheapest first candidate.
+
+This holds only on captions so far. C 2 asks for concentration on *every* main task, and MathVerse is not yet
+probed. The interim MathVerse frontier (Exp 4, n = 126) shows no accuracy loss up to k = 32. If that holds, the
+error this map locates does not reach the answer there, and the oracle has no quality gap to close on that task.
+
+---
+
+## Connections
+
+- **Claim**: [C 2 (concentration)](../claims.qmd#c2), supported on captions; [C 5 (metric)](../claims.qmd#c5) for
+  why output agreement is not the quality anchor.
+- **Upstream**: [Obs 1](obs1_frontier_bad_cases.qmd) (early split), [Exp 3](exp3_mme_frontier.qmd) (same 50 images),
+  [Exp 2](exp2_loop_identity.qmd) (the loop the probe hooks into).
+- **Next**: Exp 4 (MathVerse frontier) decides the quality anchor. Then the Phase 3 oracle on (group × band) cells,
+  see the [dashboard](overview.qmd).
+
+---
+
+::: {.grid}
+::: {.g-col-4}
+[$\leftarrow$ Obs 1 — Frontier bad cases](obs1_frontier_bad_cases.qmd)
+:::
+::: {.g-col-4}
+:::
+::: {.g-col-4 .text-end}
+[Experiments dashboard $\rightarrow$](overview.qmd)
+:::
+:::

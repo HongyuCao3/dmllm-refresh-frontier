@@ -69,7 +69,7 @@ digraph G {
         fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
         shape=box, width=1.55, height=0.42]
   edge [color="#6c757d", penwidth=1.4]
-  {rank=same; C1 [label="C 1 confirmed", fillcolor="#1a4a3a", color="#00bc8c"]; C5 [label="C 5 supported", fillcolor="#375a7f"]; C2 [label="C 2 pending"]}
+  {rank=same; C1 [label="C 1 confirmed", fillcolor="#1a4a3a", color="#00bc8c"]; C5 [label="C 5 supported", fillcolor="#375a7f"]; C2 [label="C 2 supported (captions)", fillcolor="#375a7f"]}
   {rank=same; C3 [label="C 3 pending"]; C4 [label="C 4 pending"]}
   C1 -> C2
   C5 -> C3
@@ -97,7 +97,7 @@ digraph G {
 | Claim | Experiment | Status | Notes |
 |-------|-----------|--------|-------|
 | C 1 reproduction | Exp 2, Exp 3 | ✅ Confirmed | G1 PASS with a recorded deviation (k = 2 Jaccard, 0.001) |
-| C 2 concentration | Exp 5 | ⬜ Pending | Obs 1 hints at early-step concentration |
+| C 2 concentration | [Exp 5](experiments/exp5_replacement_error_map.qmd) | 🔄 Supported on captions | G2 PASS 60.8% (age 4); mostly static (group × band alone: 50.5%); not front-loaded (36%). MathVerse not probed |
 | C 3 headroom | Phase 3 oracle | ⬜ Pending | Anchors depend on C 5 |
 | C 4 policy | Phase 4 | ⬜ Pending | — |
 | C 5 metric | Obs 1, Exp 4 | 🔄 Supported, untested on accuracy | Exploratory; decided by MathVerse |

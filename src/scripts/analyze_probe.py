@@ -71,6 +71,21 @@ def main():
     top = max(1, int(round(0.2 * len(v))))
     share = float(v[:top].sum() / v.sum()) if v.sum() else 0.0
 
+    # where the concentration comes from: G2 share if flips were spread evenly over steps within each
+    # (group, band) (structure only), or evenly over (group, band) within each step (time only)
+    def top20(vals):
+        v = np.sort(np.asarray(vals))[::-1]
+        return float(v[:max(1, int(round(0.2 * len(v))))].sum() / v.sum()) if v.sum() else 0.0
+
+    gb, gb_n, by_t = defaultdict(float), defaultdict(int), defaultdict(float)
+    for (g, band, t), f in per_cell.items():
+        gb[(g, band)] += f
+        gb_n[(g, band)] += 1
+        by_t[t] += f
+    structure_only = top20([gb[k] / gb_n[k] for k in gb for _ in range(gb_n[k])])
+    time_only = top20([by_t[t] / 8 for (_, _, t) in per_cell])
+    top_cells = sorted(per_cell, key=per_cell.get, reverse=True)[:top]
+
     def frac_first(key, nb=2):
         return float(flips[key][:nb].sum() / flips[key].sum()) if flips[key].sum() else 0.0
 
@@ -80,7 +95,13 @@ def main():
         n=len(ids), rows=args.rows,
         mean_n_prompt=round(float(np.mean([ends[i]["n_prompt"] for i in ids])), 1),
         mean_n_visual=round(float(n_vis), 1), mean_probe_s=round(float(np.mean([ends[i]["probe_s"] for i in ids])), 1),
-        g2=dict(cells=len(v), top20_share=round(share, 3), pass_=share >= 0.5, age=4),
+        g2=dict(cells=len(v), top20_share=round(share, 3), pass_=share >= 0.5, age=4,
+                structure_only_top20_share=round(structure_only, 3), time_only_top20_share=round(time_only, 3),
+                flip_share_by_group_band={f"{g}|{b}": round(gb[(g, b)] / v.sum(), 3) for g, b in sorted(gb, key=gb.get, reverse=True)},
+                top_cells_by_group_band={f"{g}|{b}": sum(1 for c in top_cells if c[:2] == (g, b)) for g, b in sorted(gb)},
+                top_cells_step_p10_p50_p90=[float(x) for x in np.percentile([c[2] for c in top_cells], [10, 50, 90])]),
+        steps_min_median_max=[int(np.min([ends[i]["steps"] for i in ids])), float(np.median([ends[i]["steps"] for i in ids])),
+                              int(np.max([ends[i]["steps"] for i in ids]))],
         d3_all_layers={s: dict(flip_rate_by_bin=[round(float(x), 4) for x in flips[f"all|all|{s}"] / masked],
                                decision_change_rate_by_bin=[round(float(x), 3) for x in dec[f"all|all|{s}"] / np.maximum(seen[f"all|all|{s}"], 1)],
                                decision_change_rate=round(float(dec[f"all|all|{s}"].sum() / max(seen[f"all|all|{s}"].sum(), 1)), 3),
@@ -91,6 +112,7 @@ def main():
                        for g in ("visual", "text")} for s in (1, 4)},
         bands={s: {b: int(flips[f"visual|{b}|{s}"].sum() + flips[f"text|{b}|{s}"].sum()) for b in BANDS} for s in (1, 4)},
         tokens_decoded_by_bin=[int(x) for x in decoded_bin],
+        masked_share_by_bin=[round(float(x), 3) for x in masked / masked.sum()],
     )
     for s in (1, 4):
         d = summary["d1_groups"][s]
@@ -106,7 +128,7 @@ def main():
         axes[0].plot(x, flips[f"all|all|{s}"] / masked, "o-", color=c, label=f"age {s}")
         axes[1].plot(x, dec[f"all|all|{s}"] / np.maximum(seen[f"all|all|{s}"], 1), "o-", color=c, label=f"age {s}")
     axes[0].set_ylabel("top-1 flip rate (masked positions)")
-    axes[1].set_ylabel("share of steps whose decision changes")
+    axes[1].set_ylabel("steps with a changed decision")
     for a in axes:
         a.set_xlabel("relative denoising step")
         a.legend(fontsize=9)

@@ -14,7 +14,7 @@ Authoritative run log, decisions and lever maps. Plan: `plans/research_plan_v2.m
 | Phase 0 smoke | **done 2026-10-28** (job 18490708, 11 min): upstream path runs; see "Phase 0 smoke" below |
 | Phase 1 | G1 PASS with recorded deviation (2026-10-28): unified loop token-identical to upstream; MME frontier reproduced. Bad-case analysis of the frontier done (Obs 1, 2026-10-29). MathVerse frontier (Exp 4): 300-problem array running (job 18603291), interim at n = 126 recorded below. Elastic-Cache / dKV-Cache ports deferred until G2 / G3 (user, 2026-10-29) |
 | Docs | Quarto site filled 2026-10-29: Exp 1–3, Obs 1, claims C 1–C 5, task definition, method (loop), dashboard. `cd docs && quarto render` |
-| Phase 2 | Exp 5 replacement-error probe on 50 MME images running (job 18601279, 44 / 50 done at 2026-10-29 ~1.7 h in) |
+| Phase 2 | Exp 5 done 2026-10-29 (job 18601279): **G2 PASS on captions** (60.8%); MathVerse not probed. Page `docs/experiments/exp5_replacement_error_map.qmd` |
 | Phases 3–5 | not started |
 
 ## Decisions (user)
@@ -300,3 +300,16 @@ semi-autoregressive blocks < gen_length, another task), or a search for the k wh
 **Probe smoke** (job 18600727, 2 images): 83 s (N = 1042) and 115 s (N = 3715) per image; full probe job 18601279
 (50 images, ~1.4 h). Smoke-level hints only (n = 2): flips grow toward late steps, the deep bands 16–31 hold ~80% of
 flips, text positions flip 11–15× more per position than visual ones.
+
+**Result** (job 18601279, 50 images, 1 h 54 min, 136 s / image; `results/phase2/probe_mme/probe_summary.json`,
+page `docs/experiments/exp5_replacement_error_map.qmd`):
+- **G2 PASS on captions**: top 20% of 952 (group × band × step) cells hold 60.8% of flips at age 4. Reference
+  shares: structure only (group × band, even over steps) 50.5%; time only 42.1%. The concentration is mostly static.
+- D3: first 20% of steps hold 36.0% of flips (masked-position share there: 35.9%) → early-dense row **not hit**.
+  Flip rate rises late (age 4: 0.052 → 0.114); decision changes are U-shaped (19.6% first fifth, 17.8% last bin).
+- D1: text positions (~61 of 3112, 2%) cause 30.3% of flips, **21.7×** visual per position → group-wise row **hit**.
+- Bands: deepest band 45.9% (< 50%, row narrowly **not hit**); layers 16–31 together 78.1% (Elastic-Cache overlap).
+- Decision changes at 13.5% of steps at age 4 → "rare flips" row **not hit**.
+- Rows hit: "G2 met" (Phase 3 oracle on concentrated cells) and "groups differ" (group-wise refresh). Proposed
+  first candidate: text prompt every step + visual every k (text refresh estimated ~2% of a prompt refresh).
+  Open: C 2 needs G2 on MathVerse too, and the interim Exp 4 shows no accuracy loss to recover there.

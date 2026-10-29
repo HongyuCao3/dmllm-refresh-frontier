@@ -1,0 +1,221 @@
+{
+ "n": 50,
+ "rows": "/scratch/hcao2/outputs/dmllm_refresh/phase2_probe_mme/rows.jsonl",
+ "mean_n_prompt": 3112.0,
+ "mean_n_visual": 3051.0,
+ "mean_probe_s": 135.9,
+ "g2": {
+  "cells": 952,
+  "top20_share": 0.608,
+  "pass_": true,
+  "age": 4,
+  "structure_only_top20_share": 0.505,
+  "time_only_top20_share": 0.421,
+  "flip_share_by_group_band": {
+   "visual|L24-31": 0.376,
+   "visual|L16-23": 0.216,
+   "text|L16-23": 0.106,
+   "text|L24-31": 0.083,
+   "visual|L8-15": 0.06,
+   "text|L8-15": 0.058,
+   "text|L0-7": 0.057,
+   "visual|L0-7": 0.046
+  },
+  "top_cells_by_group_band": {
+   "text|L0-7": 3,
+   "text|L16-23": 15,
+   "text|L24-31": 9,
+   "text|L8-15": 3,
+   "visual|L0-7": 0,
+   "visual|L16-23": 70,
+   "visual|L24-31": 90,
+   "visual|L8-15": 0
+  },
+  "top_cells_step_p10_p50_p90": [
+   7.0,
+   36.0,
+   76.1
+  ]
+ },
+ "steps_min_median_max": [
+  87,
+  113.0,
+  123
+ ],
+ "d3_all_layers": {
+  "1": {
+   "flip_rate_by_bin": [
+    0.0414,
+    0.0354,
+    0.0309,
+    0.033,
+    0.0301,
+    0.0319,
+    0.037,
+    0.047,
+    0.0492,
+    0.0613
+   ],
+   "decision_change_rate_by_bin": [
+    0.111,
+    0.106,
+    0.082,
+    0.068,
+    0.08,
+    0.056,
+    0.065,
+    0.052,
+    0.061,
+    0.095
+   ],
+   "decision_change_rate": 0.077,
+   "first_20pct_share_of_flips": 0.384
+  },
+  "2": {
+   "flip_rate_by_bin": [
+    0.0538,
+    0.048,
+    0.0417,
+    0.0453,
+    0.04,
+    0.0437,
+    0.051,
+    0.061,
+    0.0725,
+    0.0851
+   ],
+   "decision_change_rate_by_bin": [
+    0.164,
+    0.145,
+    0.099,
+    0.072,
+    0.107,
+    0.081,
+    0.093,
+    0.089,
+    0.093,
+    0.139
+   ],
+   "decision_change_rate": 0.107,
+   "first_20pct_share_of_flips": 0.377
+  },
+  "4": {
+   "flip_rate_by_bin": [
+    0.0593,
+    0.0649,
+    0.054,
+    0.0605,
+    0.0521,
+    0.0569,
+    0.0641,
+    0.0801,
+    0.0922,
+    0.1137
+   ],
+   "decision_change_rate_by_bin": [
+    0.196,
+    0.196,
+    0.129,
+    0.11,
+    0.149,
+    0.107,
+    0.106,
+    0.094,
+    0.111,
+    0.178
+   ],
+   "decision_change_rate": 0.135,
+   "first_20pct_share_of_flips": 0.36
+  },
+  "8": {
+   "flip_rate_by_bin": [
+    0.0345,
+    0.0914,
+    0.0713,
+    0.0778,
+    0.0667,
+    0.0746,
+    0.0822,
+    0.1043,
+    0.1137,
+    0.1448
+   ],
+   "decision_change_rate_by_bin": [
+    0.231,
+    0.215,
+    0.176,
+    0.139,
+    0.147,
+    0.135,
+    0.145,
+    0.119,
+    0.143,
+    0.237
+   ],
+   "decision_change_rate": 0.164,
+   "first_20pct_share_of_flips": 0.3
+  }
+ },
+ "d1_groups": {
+  "1": {
+   "visual": {
+    "flips": 18676,
+    "decision_changes": 585
+   },
+   "text": {
+    "flips": 9357,
+    "decision_changes": 230
+   },
+   "flips_per_position_ratio_text_over_visual": 25.06
+  },
+  "4": {
+   "visual": {
+    "flips": 30578,
+    "decision_changes": 963
+   },
+   "text": {
+    "flips": 13287,
+    "decision_changes": 280
+   },
+   "flips_per_position_ratio_text_over_visual": 21.73
+  }
+ },
+ "bands": {
+  "1": {
+   "L0-7": 3731,
+   "L8-15": 3559,
+   "L16-23": 8360,
+   "L24-31": 12383
+  },
+  "4": {
+   "L0-7": 4482,
+   "L8-15": 5141,
+   "L16-23": 14120,
+   "L24-31": 20122
+  }
+ },
+ "tokens_decoded_by_bin": [
+  665,
+  614,
+  623,
+  608,
+  604,
+  648,
+  620,
+  624,
+  670,
+  619
+ ],
+ "masked_share_by_bin": [
+  0.193,
+  0.166,
+  0.148,
+  0.127,
+  0.108,
+  0.092,
+  0.07,
+  0.052,
+  0.032,
+  0.011
+ ]
+}
