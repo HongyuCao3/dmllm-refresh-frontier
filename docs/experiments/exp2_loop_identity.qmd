@@ -1,0 +1,134 @@
+---
+title: "Exp 2 — Unified refresh loop matches upstream (G1 part i)"
+subtitle: "Does routing the refresh decision through a policy object change any output token?"
+date: 2026-10-28
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: false
+    html-math-method: katex
+---
+
+::: {.callout-note}
+**Status:** Complete, **G1(i) PASS**. LLaDA-V · 6 cells (k ∈ {1, 4, 32} × threshold ∈ {0.5, none}) ·
+5 MME images · A100 40GB · job 18510589, 27 min.
+:::
+
+---
+
+## What
+
+- Our loop [`src/methods/refresh/loop.py`](../../src/methods/refresh/loop.py) copies upstream's Fast-dLLM loop.
+- One change: the refresh test `i % k == 0` becomes a call to a `RefreshPolicy`.
+- Exp 2 checks that this change is a no-op for fixed interval k.
+
+```{dot}
+//| label: fig-exp2-what
+//| fig-cap: "Same samples through both loops; outputs must be token-identical"
+//| fig-width: 7
+//| fig-height: 2.4
+digraph G {
+  bgcolor="transparent"
+  rankdir=LR
+  graph [ranksep=0.5, nodesep=0.5]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
+        shape=box, width=1.55, height=0.42]
+  edge [color="#6c757d", penwidth=1.4]
+  S [label="5 MME images", fillcolor="#375a7f"]
+  {rank=same; U [label="Upstream loop"]; O [label="Our loop"]}
+  C [label="Token compare", fillcolor="#1a4a3a", color="#00bc8c"]
+  S -> U -> C
+  S -> O -> C
+}
+```
+
+---
+
+## Why
+
+- Every policy in Phases 3–4 runs through this loop.
+- A silent numeric change would credit or blame a policy for a loop bug.
+- Run-to-run nondeterminism must be known before token identity can serve as a test.
+
+---
+
+## Hypotheses
+
+| ID | Statement | How to falsify |
+|:--:|-----------|----------------|
+| **H1** | Our loop with `FixedInterval(k)` equals upstream at `prefix_refresh_interval = k` | Any of 30 (cell, image) pairs differs in any token |
+| **H2** | Upstream is deterministic run to run on this path | Upstream rerun differs from itself on any image |
+| **H3** | The policy call adds no measurable time | Mean time differs by > 1% in any cell |
+
+---
+
+## How
+
+- Script [`src/scripts/g1_identity.py`](../../src/scripts/g1_identity.py), job
+  [`slurm/phase1_g1_identity.sbatch`](../../slurm/phase1_g1_identity.sbatch).
+- Same 5 images as Exp 1; gen_length = steps = block = 128.
+- Upstream run twice at k = 4, threshold 0.5, for the nondeterminism check.
+- Verdict: `python src/scripts/gate_check.py g1`.
+
+---
+
+## Results
+
+Source: [`results/phase1/g1_identity/g1_identity_summary.json`](../../results/phase1/g1_identity/g1_identity_summary.json).
+
+| Threshold | k | identical | ours s / sample | upstream s / sample |
+|:---:|:---:|:---:|:---:|:---:|
+| 0.5 | 1 | 5/5 | 45.35 | 45.43 |
+| 0.5 | 4 | 5/5 | 15.63 | 15.63 |
+| 0.5 | 32 | 5/5 | 6.28 | 6.27 |
+| none | 1 | 5/5 | 54.63 | 54.60 |
+| none | 4 | 5/5 | 17.85 | 17.85 |
+| none | 32 | 5/5 | 7.12 | 7.12 |
+| upstream rerun, 0.5 | 4 | 5/5 | 15.66 | 15.63 |
+
+### Hypothesis assessment
+
+| Hypothesis | Verdict | Evidence |
+|:----------:|:-------:|---------|
+| **H1** (loop = upstream) | **Confirmed** | 30/30 pairs token-identical |
+| **H2** (upstream deterministic) | **Confirmed** | Rerun 5/5 identical; nondeterminism rate 0/5 |
+| **H3** (no overhead) | **Confirmed** | Largest gap 0.08 s of 45 s (0.2%) |
+
+---
+
+## Insights
+
+- **The loop is a faithful harness** (30/30 identical, ≤ 0.2% time gap).
+  - Any later output change is caused by the refresh schedule, not by the harness.
+- **Decoding is deterministic on this path** (0/5 rerun mismatches).
+  - One run per arm is enough; uncertainty comes from samples (`.claude/research.md`).
+
+---
+
+## Takeaway
+
+The unified loop reproduces upstream token-for-token at every tested interval and threshold, with no time
+overhead. Policies can now change only the refresh steps and be compared fairly against fixed interval.
+
+---
+
+## Connections
+
+- **Exp 1** ([upstream smoke](exp1_upstream_smoke.qmd)): same 5 images; supplied the reference behaviour.
+- **Exp 3** ([MME frontier](exp3_mme_frontier.qmd)): runs the frontier through this loop.
+- **C 1** ([Claims](../claims.qmd#c1)): G1 part (i).
+
+---
+
+::: {.grid}
+::: {.g-col-4}
+[$\leftarrow$ Exp 1 — Upstream smoke](exp1_upstream_smoke.qmd)
+:::
+::: {.g-col-4}
+:::
+::: {.g-col-4 .text-end}
+[Exp 3 — MME frontier $\rightarrow$](exp3_mme_frontier.qmd)
+:::
+:::

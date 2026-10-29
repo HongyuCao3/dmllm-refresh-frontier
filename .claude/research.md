@@ -32,9 +32,10 @@ its point estimate is within 1 accuracy point (or 0.01 Jaccard) of it.
 
 ## When a gate fails
 
-- A failed gate selects a lever, not a stop. G2 or G3 failing points to the analysis paper the plan names
-  ("error is uniform, fixed interval is near-optimal"). Stopping or pivoting is the user's decision; present
-  ranked levers.
+- A failed gate selects a lever, not a stop. **User decision 2026-10-29: the analysis-paper fallback ("error is
+  uniform, fixed interval is near-optimal") is off the table for now.** G2 or G3 failing leads to bad-case
+  analysis aimed at an improvement lever and a positive result. Stopping or pivoting stays the user's decision;
+  present ranked levers.
 
 ## Lever maps
 

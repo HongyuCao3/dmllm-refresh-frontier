@@ -1,0 +1,431 @@
+{
+ "n": 50,
+ "source": "/scratch/hcao2/outputs/dmllm_refresh/mme_caption_frontier/generations.jsonl",
+ "note": "Diagnostic analysis of the G1(ii) frontier; per-image numbers steer decisions, the headline stays g1_summary.json",
+ "output_lengths": {
+  "full": [
+   127
+  ],
+  "interval1": [
+   127
+  ],
+  "interval2": [
+   127
+  ],
+  "interval4": [
+   127
+  ],
+  "interval8": [
+   127
+  ],
+  "interval16": [
+   127
+  ],
+  "interval32": [
+   127
+  ]
+ },
+ "per_interval": {
+  "1": {
+   "jaccard_mean": 0.982,
+   "jaccard_ci95": [
+    0.961,
+    0.995
+   ],
+   "jaccard_sd": 0.07,
+   "jaccard_min": 0.507,
+   "exact_match": 35,
+   "prefix_median": 127.0,
+   "prefix_q25_q75": [
+    117.75,
+    127.0
+   ],
+   "frac_prefix_le_16": 0.04,
+   "spearman_jaccard_vs_prefix": 0.91,
+   "spearman_jaccard_vs_n_prompt": -0.31,
+   "forwards_mean": 111.9,
+   "refreshes_mean": 111.9
+  },
+  "2": {
+   "jaccard_mean": 0.615,
+   "jaccard_ci95": [
+    0.55,
+    0.681
+   ],
+   "jaccard_sd": 0.239,
+   "jaccard_min": 0.242,
+   "exact_match": 6,
+   "prefix_median": 22.0,
+   "prefix_q25_q75": [
+    11.25,
+    51.75
+   ],
+   "frac_prefix_le_16": 0.4,
+   "spearman_jaccard_vs_prefix": 0.75,
+   "spearman_jaccard_vs_n_prompt": -0.05,
+   "forwards_mean": 111.5,
+   "refreshes_mean": 56.0
+  },
+  "4": {
+   "jaccard_mean": 0.553,
+   "jaccard_ci95": [
+    0.498,
+    0.607
+   ],
+   "jaccard_sd": 0.196,
+   "jaccard_min": 0.258,
+   "exact_match": 0,
+   "prefix_median": 22.0,
+   "prefix_q25_q75": [
+    8.25,
+    38.5
+   ],
+   "frac_prefix_le_16": 0.4,
+   "spearman_jaccard_vs_prefix": 0.63,
+   "spearman_jaccard_vs_n_prompt": -0.05,
+   "forwards_mean": 111.4,
+   "refreshes_mean": 28.2
+  },
+  "8": {
+   "jaccard_mean": 0.501,
+   "jaccard_ci95": [
+    0.458,
+    0.546
+   ],
+   "jaccard_sd": 0.162,
+   "jaccard_min": 0.264,
+   "exact_match": 0,
+   "prefix_median": 8.5,
+   "prefix_q25_q75": [
+    4.25,
+    22.75
+   ],
+   "frac_prefix_le_16": 0.64,
+   "spearman_jaccard_vs_prefix": 0.65,
+   "spearman_jaccard_vs_n_prompt": 0.1,
+   "forwards_mean": 112.5,
+   "refreshes_mean": 14.6
+  },
+  "16": {
+   "jaccard_mean": 0.459,
+   "jaccard_ci95": [
+    0.424,
+    0.495
+   ],
+   "jaccard_sd": 0.132,
+   "jaccard_min": 0.267,
+   "exact_match": 0,
+   "prefix_median": 9.5,
+   "prefix_q25_q75": [
+    5.0,
+    22.0
+   ],
+   "frac_prefix_le_16": 0.68,
+   "spearman_jaccard_vs_prefix": 0.61,
+   "spearman_jaccard_vs_n_prompt": 0.12,
+   "forwards_mean": 113.6,
+   "refreshes_mean": 7.6
+  },
+  "32": {
+   "jaccard_mean": 0.432,
+   "jaccard_ci95": [
+    0.4,
+    0.466
+   ],
+   "jaccard_sd": 0.125,
+   "jaccard_min": 0.242,
+   "exact_match": 0,
+   "prefix_median": 8.5,
+   "prefix_q25_q75": [
+    4.25,
+    16.75
+   ],
+   "frac_prefix_le_16": 0.74,
+   "spearman_jaccard_vs_prefix": 0.58,
+   "spearman_jaccard_vs_n_prompt": -0.03,
+   "forwards_mean": 113.9,
+   "refreshes_mean": 4.0
+  }
+ },
+ "interval1_nonidentical": {
+  "n": 15,
+  "jaccard": [
+   0.969,
+   0.971,
+   0.97,
+   1.0,
+   0.969,
+   0.961,
+   0.971,
+   0.966,
+   0.971,
+   0.983,
+   0.507,
+   0.985,
+   0.968,
+   0.966,
+   0.968
+  ],
+  "prefix": [
+   117,
+   28,
+   125,
+   59,
+   91,
+   114,
+   120,
+   99,
+   51,
+   30,
+   11,
+   107,
+   115,
+   98,
+   8
+  ]
+ },
+ "cross_arm_jaccard": {
+  "arms": [
+   "full",
+   "interval1",
+   "interval2",
+   "interval4",
+   "interval8",
+   "interval16",
+   "interval32"
+  ],
+  "matrix": [
+   [
+    1.0,
+    0.982,
+    0.615,
+    0.553,
+    0.501,
+    0.459,
+    0.432
+   ],
+   [
+    0.982,
+    1.0,
+    0.624,
+    0.561,
+    0.51,
+    0.459,
+    0.431
+   ],
+   [
+    0.615,
+    0.624,
+    1.0,
+    0.627,
+    0.505,
+    0.462,
+    0.444
+   ],
+   [
+    0.553,
+    0.561,
+    0.627,
+    1.0,
+    0.528,
+    0.468,
+    0.443
+   ],
+   [
+    0.501,
+    0.51,
+    0.505,
+    0.528,
+    1.0,
+    0.538,
+    0.471
+   ],
+   [
+    0.459,
+    0.459,
+    0.462,
+    0.468,
+    0.538,
+    1.0,
+    0.54
+   ],
+   [
+    0.432,
+    0.431,
+    0.444,
+    0.443,
+    0.471,
+    0.54,
+    1.0
+   ]
+  ]
+ },
+ "spearman_per_image_jaccard_across_intervals": {
+  "intervals": [
+   1,
+   2,
+   4,
+   8,
+   16,
+   32
+  ],
+  "matrix": [
+   [
+    1.0,
+    0.22,
+    0.02,
+    0.07,
+    -0.0,
+    0.16
+   ],
+   [
+    0.22,
+    1.0,
+    0.5,
+    0.4,
+    0.29,
+    0.4
+   ],
+   [
+    0.02,
+    0.5,
+    1.0,
+    0.63,
+    0.47,
+    0.45
+   ],
+   [
+    0.07,
+    0.4,
+    0.63,
+    1.0,
+    0.75,
+    0.51
+   ],
+   [
+    -0.0,
+    0.29,
+    0.47,
+    0.75,
+    1.0,
+    0.69
+   ],
+   [
+    0.16,
+    0.4,
+    0.45,
+    0.51,
+    0.69,
+    1.0
+   ]
+  ]
+ },
+ "interval2_jaccard_by_category": {
+  "color": {
+   "n": 1,
+   "mean": 0.323
+  },
+  "celebrity": {
+   "n": 4,
+   "mean": 0.398
+  },
+  "artwork": {
+   "n": 9,
+   "mean": 0.49
+  },
+  "posters": {
+   "n": 5,
+   "mean": 0.531
+  },
+  "count": {
+   "n": 3,
+   "mean": 0.562
+  },
+  "commonsense_reasoning": {
+   "n": 4,
+   "mean": 0.636
+  },
+  "scene": {
+   "n": 11,
+   "mean": 0.661
+  },
+  "landmark": {
+   "n": 9,
+   "mean": 0.75
+  },
+  "position": {
+   "n": 1,
+   "mean": 0.853
+  },
+  "OCR": {
+   "n": 1,
+   "mean": 0.864
+  },
+  "code_reasoning": {
+   "n": 1,
+   "mean": 0.883
+  },
+  "numerical_calculation": {
+   "n": 1,
+   "mean": 0.903
+  }
+ },
+ "interval2_worst": [
+  {
+   "sample_id": 47,
+   "mme_id": "commonsense_reasoning/0015.png",
+   "jaccard": 0.242,
+   "prefix": 2,
+   "n_prompt": 3740
+  },
+  {
+   "sample_id": 48,
+   "mme_id": "commonsense_reasoning/0049.png",
+   "jaccard": 0.302,
+   "prefix": 8,
+   "n_prompt": 3740
+  },
+  {
+   "sample_id": 29,
+   "mme_id": "color/000000047112.jpg",
+   "jaccard": 0.323,
+   "prefix": 4,
+   "n_prompt": 2990
+  },
+  {
+   "sample_id": 36,
+   "mme_id": "artwork/10970.jpg",
+   "jaccard": 0.333,
+   "prefix": 10,
+   "n_prompt": 3760
+  },
+  {
+   "sample_id": 21,
+   "mme_id": "artwork/35486.jpg",
+   "jaccard": 0.341,
+   "prefix": 14,
+   "n_prompt": 3688
+  },
+  {
+   "sample_id": 14,
+   "mme_id": "celebrity/tt0086856_shot_0929_img_0.jpg",
+   "jaccard": 0.345,
+   "prefix": 13,
+   "n_prompt": 2055
+  },
+  {
+   "sample_id": 20,
+   "mme_id": "artwork/5227.jpg",
+   "jaccard": 0.36,
+   "prefix": 30,
+   "n_prompt": 3742
+  },
+  {
+   "sample_id": 23,
+   "mme_id": "posters/tt7131870.jpg",
+   "jaccard": 0.367,
+   "prefix": 13,
+   "n_prompt": 2788
+  }
+ ]
+}

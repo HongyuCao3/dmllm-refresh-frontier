@@ -3,7 +3,7 @@ project:
   output-dir: _site
 
 website:
-  title: "Research Project Docs"
+  title: "dmllm-refresh-frontier"
   page-navigation: true
   navbar:
     background: dark
@@ -32,24 +32,24 @@ website:
             href: claims.qmd
       - section: "Method"
         contents:
-          - text: "Overview"
+          - text: "Unified refresh loop"
             href: method/overview.qmd
-          - text: "Component A"
-            href: method/component_a.qmd
-          - text: "Component B"
-            href: method/component_b.qmd
       - section: "Experiments"
         contents:
           - text: "Dashboard"
             href: experiments/overview.qmd
-          - text: "Main Experiment"
-            href: experiments/main.qmd
-          - text: "Ablation Study"
-            href: experiments/ablation.qmd
-          - text: "Hyperparameter Sensitivity"
-            href: experiments/hyperparam.qmd
+          - text: "Exp 1 — Upstream smoke"
+            href: experiments/exp1_upstream_smoke.qmd
+          - text: "Exp 2 — Loop identity (G1 i)"
+            href: experiments/exp2_loop_identity.qmd
+          - text: "Exp 3 — MME frontier (G1 ii)"
+            href: experiments/exp3_mme_frontier.qmd
+          - text: "Obs 1 — Frontier bad cases"
+            href: experiments/obs1_frontier_bad_cases.qmd
       - section: "Reporting"
         contents:
+          - text: "Run log (PROGRESS)"
+            href: PROGRESS.md
           - text: "Weekly Progress"
             href: weekly_progress.qmd
           - text: "Weekly Presentation"

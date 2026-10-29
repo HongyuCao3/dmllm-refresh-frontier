@@ -2,133 +2,84 @@
 title: "Experiments Dashboard"
 ---
 
-## What — Experiment Suite
+## What — Experiment suite
 
-- **Experiment suite**: three experiments systematically validate each claim in `claims.qmd`
-- **Main Experiment**: full model vs. all baselines on held-out test set
-- **Ablation Study**: component-by-component contribution analysis
-- **HP Sensitivity**: effect of key hyperparameters on performance and robustness
+- Phase 0–1 establish the reference: upstream runs (Exp 1), our loop is exact (Exp 2), the frontier reproduces (Exp 3).
+- Obs 1 reads the frontier's bad cases and turns them into refresh levers.
+- Phases 2–4 test whether refresh can be spent better than every k steps (Exp 4 onward).
+- Run log, decisions and lever maps: [`docs/PROGRESS.md`](../PROGRESS.md). Plan: [`plans/research_plan_v2.md`](../../plans/research_plan_v2.md).
 
-## Why — Validation Strategy
+| ID | Question | Phase / gate | Status | Headline |
+|:--:|---|:---:|:---:|---|
+| [Exp 1](exp1_upstream_smoke.qmd) | Does upstream run; what does a sample cost? | 0 | ✅ | k = 1 = full on 5/5; N ~3k (3× plan) |
+| [Exp 2](exp2_loop_identity.qmd) | Is our refresh loop exact? | 1 · G1(i) | ✅ PASS | 30/30 token-identical, ≤ 0.2% time gap |
+| [Exp 3](exp3_mme_frontier.qmd) | Does the published frontier reproduce? | 1 · G1(ii) | ✅ PASS* | 6/6 speedups ±20%; 5/6 Jaccards ±0.05 |
+| [Obs 1](obs1_frontier_bad_cases.qmd) | Are low-agreement captions worse, and where do they split? | 1 | ✅ | Different, not worse; split decided early |
+| Exp 4 | Fixed-interval frontier on MathVerse (accuracy anchors) | 1 | ⬜ settings pending | — |
+| Exp 5 | Replacement-error map: when and where staleness flips tokens (D3, D5, D1) | 2 · G2 | ⬜ design | — |
 
-- **Why three experiments**: each targets a different claim type — superiority (main), necessity (ablation), robustness (HP)
-- **Why this ordering**: main experiment confirms the headline result; ablation explains it; HP search stress-tests it
-- **Reproducibility**: `seed=42` fixed in all runs; results reported as mean ± std over [K] seeds
-- **Compute budget**: [e.g., ~N GPU-hours on single A100 / RTX 4090]
+\* accepted by the user with one recorded deviation (k = 2 Jaccard off by 0.001, inside our 95% CI).
 
 ```{dot}
-//| label: fig-exp-design
-//| fig-cap: "Validation strategy: claims → experiments → metrics → confirmed claims"
+//| label: fig-exp-chain
+//| fig-cap: "Reference first, then bad cases, then the error map that decides G2"
 //| fig-width: 7
-//| fig-height: 3.5
+//| fig-height: 3.2
 digraph G {
   bgcolor="transparent"
   rankdir=TB
-  graph [ranksep=0.55, nodesep=0.5]
+  graph [ranksep=0.5, nodesep=0.5]
   node [style=filled, fillcolor="#2c3035", color="#4a9eda",
         fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
-        shape=box, width=1.6, height=0.42]
+        shape=box, width=1.55, height=0.42]
   edge [color="#6c757d", penwidth=1.4]
-
-  subgraph row1 {
-    rank=same
-    C1 [label="Claim 1", fillcolor="#375a7f"]
-    C2 [label="Claim 2", fillcolor="#375a7f"]
-    C3 [label="Claim 3", fillcolor="#375a7f"]
-  }
-  subgraph row2 {
-    rank=same
-    Main [label="Main Expt"]
-    Abl  [label="Ablation"]
-    HP   [label="HP Search"]
-  }
-  subgraph row3 {
-    rank=same
-    M1 [label="Primary Metric"]
-    M2 [label="Delta per Comp"]
-    M3 [label="Sensitivity"]
-  }
-  subgraph row4 {
-    rank=same
-    Out [label="Validated Claims", fillcolor="#1a4a3a", color="#00bc8c", width=5.0]
-  }
-
-  C1 -> Main  C2 -> Abl  C3 -> HP
-  Main -> M1  Abl -> M2  HP -> M3
-  M1 -> Out  M2 -> Out  M3 -> Out
+  {rank=same; E1 [label="Exp 1 smoke", fillcolor="#1a4a3a", color="#00bc8c"]; E2 [label="Exp 2 identity", fillcolor="#1a4a3a", color="#00bc8c"]; E3 [label="Exp 3 frontier", fillcolor="#1a4a3a", color="#00bc8c"]}
+  O1 [label="Obs 1 bad cases", fillcolor="#1a4a3a", color="#00bc8c"]
+  {rank=same; E4 [label="Exp 4 MathVerse"]; E5 [label="Exp 5 error map"]}
+  G [label="G2 / G3", fillcolor="#375a7f"]
+  E1 -> E2 -> E3
+  E3 -> O1
+  O1 -> E4
+  O1 -> E5
+  E4 -> G
+  E5 -> G
 }
 ```
 
-<details>
-<summary><strong>How — Datasets</strong></summary>
+## Why — Validation strategy
 
-- **Name**: [dataset name and version]
-- **Size**: [N_train / N_val / N_test] samples; [D] features; [C] classes / continuous target
-- **Source**: [origin — UCI / Kaggle / custom / synthetic]
-- **Preprocessing**: standardisation, missing-value handling, class-imbalance strategy
-- **Splits**: [stratified k-fold / random / time-based] — consistent across all experiments
+- **Reference before method**: a policy only counts against a fixed-interval curve that matches the paper.
+- **Bad cases before policies** (user decision 2026-10-29): read failures to find levers, aim for a positive result.
+- **Accuracy sets the anchors**: Obs 1 shows Jaccard vs full near k = 2 tracks trajectory, not quality.
+- **Repetition**: deterministic decoding, one run per arm, paired `Δ [95% CI] (n)` over samples
+  (`.claude/research.md`). This replaces the template's "mean ± std over seeds".
+- **Timing**: one GPU type per table (A100 80GB PCIe so far), generation time only.
 
-</details>
+## How — Data, arms, metrics
 
-<details>
-<summary><strong>How — Baselines</strong></summary>
-
-| Baseline | Description | Reference |
-|----------|-------------|-----------|
-| Linear | Logistic regression | scikit-learn |
-| MLP-vanilla | MLP without key components | this repo |
-| [SotA method] | [description] | [citation] |
-
-- All baselines trained with identical optimiser, lr, and seed
-- Hyperparameters for each baseline tuned with the same Optuna budget
-
-</details>
-
-<details>
-<summary><strong>How — Evaluation Metrics</strong></summary>
-
-| Metric | Formula / Tool | Used In |
-|--------|---------------|---------|
-| [Metric A] | [e.g., accuracy, top-1] | Main, Ablation |
-| [Metric B] | [e.g., macro F1] | Main, Ablation |
-| [Metric C] | [e.g., ECE — calibration] | Main |
-| Δ vs. Full | metric drop when component removed | Ablation |
-| Sensitivity σ | std across HP range | HP Search |
-
-- Statistical test: [test name] for significance, p < 0.05
-- Effect size: Cohen's d or absolute Δ reported alongside p-value
-
-</details>
-
-<details>
-<summary><strong>How — MLflow Tracking</strong></summary>
-
-All runs automatically logged to `mlruns/`. To view:
-
-```bash
-mlflow ui --backend-store-uri mlruns/
-# Open http://localhost:5000
-```
-
-Key logged artifacts: `config.yaml`, confusion matrix PNG, per-class metrics CSV, checkpoint path.
-
-</details>
-
----
-
-## Experiment Suite
+| Item | Setting |
+|---|---|
+| Model | `GSAI-ML/LLaDA-V` (snapshot `a10ba17`), SigLIP-2 so400m tower, bf16, sdpa |
+| Captioning | 50 unique MME images (seed 0), "Please describe the image in detail.", gen = steps = block = 128, threshold 0.5 |
+| Arms so far | full recompute; fixed interval k ∈ {1, 2, 4, 8, 16, 32} |
+| Quality | Jaccard over lowercased word sets vs full (captions); task accuracy (MathVerse, primary, pending) |
+| Cost | wall-clock seconds per sample; speedup over full; r = refreshes / forwards |
 
 ::: {.card-grid}
 <div class="nav-card">
-<a href="main.qmd">Main Experiment</a>
-<p>Full model vs. all baselines on held-out test set</p>
+<a href="exp1_upstream_smoke.qmd">Exp 1 — Upstream smoke</a>
+<p>Upstream runs; cost profile; N ~3k</p>
 </div>
 <div class="nav-card">
-<a href="ablation.qmd">Ablation Study</a>
-<p>Component-by-component contribution analysis</p>
+<a href="exp2_loop_identity.qmd">Exp 2 — Loop identity</a>
+<p>G1(i): unified loop = upstream</p>
 </div>
 <div class="nav-card">
-<a href="hyperparam.qmd">HP Sensitivity</a>
-<p>Effect of key hyperparameters on performance</p>
+<a href="exp3_mme_frontier.qmd">Exp 3 — MME frontier</a>
+<p>G1(ii): reference curve</p>
+</div>
+<div class="nav-card">
+<a href="obs1_frontier_bad_cases.qmd">Obs 1 — Bad cases</a>
+<p>Different, not worse; early split</p>
 </div>
 :::

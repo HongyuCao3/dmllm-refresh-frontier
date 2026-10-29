@@ -3,7 +3,7 @@
 Authoritative run log, decisions and lever maps. Plan: `plans/research_plan_v2.md`. Rules: `.claude/research.md`,
 `.claude/cluster.md`. Newest entries at the bottom of each section.
 
-## Status (2026-10-28)
+## Status (2026-10-29)
 
 | Plan item | Status |
 |---|---|
@@ -12,7 +12,8 @@ Authoritative run log, decisions and lever maps. Plan: `plans/research_plan_v2.m
 | Env `llada-v` | **built 2026-10-28** at `/scratch/hcao2/envs/llada-v`: torch 2.1.2+cu121, transformers 4.39.3, tokenizers 0.15.2; `llava` + Fast-dLLM hook + dLLM-Cache hook import OK on CPU (log `/scratch/hcao2/tmp/logs/setup_llada_v_20261028_1034.log`); GPU load verified in the Phase 0 smoke. `pyarrow<18` added for benchmark prep |
 | Weights | **downloaded 2026-10-28**: `GSAI-ML/LLaDA-V` (16 GB, snapshot `a10ba17`) and vision tower `google/siglip2-so400m-patch14-384` (4.3 GB, snapshot `e8e4872`) in `/scratch/hcao2/hf_cache`. llava loads the tower with its own `SigLipVisionModel`, not transformers' siglip2 |
 | Phase 0 smoke | **done 2026-10-28** (job 18490708, 11 min): upstream path runs; see "Phase 0 smoke" below |
-| Phase 1 | G1 PASS with recorded deviation (2026-10-28): unified loop token-identical to upstream; MME frontier reproduced. Baselines (Elastic-Cache, dKV-Cache ports) and MathVerse frontier not started |
+| Phase 1 | G1 PASS with recorded deviation (2026-10-28): unified loop token-identical to upstream; MME frontier reproduced. Bad-case analysis of the frontier done (Obs 1, 2026-10-29). MathVerse frontier: settings pending. Elastic-Cache / dKV-Cache ports deferred until G2 / G3 (user, 2026-10-29) |
+| Docs | Quarto site filled 2026-10-29: Exp 1–3, Obs 1, claims C 1–C 5, task definition, method (loop), dashboard. `cd docs && quarto render` |
 | Phases 2–5 | not started |
 
 ## Decisions (user)
@@ -23,6 +24,9 @@ Authoritative run log, decisions and lever maps. Plan: `plans/research_plan_v2.m
 | 2026-10-27 | Gates frozen: G1 token-identical to upstream at interval 1 / 4 / 32, speedup ±20% relative and Jaccard ±0.05 of the published table, both monotone; G2 top 20% cells ≥ 50% of error; G3 oracle ≥ 40% lower wall-clock on ≥ 2 anchors; G4 ≥ 25% on ≥ 2 anchors, Holm-significant, ≥ 50% of oracle gain |
 | 2026-10-27 | Matched quality (proposed with the gates, accepted): not significantly below the anchor and within 1 accuracy point (or 0.01 Jaccard) |
 | 2026-10-28 | **G1 accepted as PASS with a recorded deviation**: interval-2 Jaccard 0.615 vs paper 0.666 misses the ±0.05 tolerance by 0.001; the paper's value lies inside our 95% bootstrap CI at every interval, and the paper's 50-image subset is unpublished. Thresholds unchanged. The 50-image frontier (`results/phase1/mme_caption_frontier/g1_summary.json`) is the reference curve |
+
+| 2026-10-29 | **Order of work**: record and analyse all Phase 0–1 results in the docs first; then (1) MathVerse frontier, (2) Phase 2 error map, D3 and D5 first. Elastic-Cache / dKV-Cache ports wait until G2 / G3 |
+| 2026-10-29 | **No analysis-paper fallback for now**: if G2 or G3 fails, the response is bad-case analysis aimed at an improvement and a positive result, not a pivot to the "error is uniform" paper. Thresholds unchanged |
 
 ## Findings so far (setup)
 
@@ -53,10 +57,37 @@ Authoritative run log, decisions and lever maps. Plan: `plans/research_plan_v2.m
   16 7.7, 32 6.3 s. Model load 27–53 s; peak memory 31 GB. work1 jobs can be preempted (job 18513394 was, at
   270/350 rows); `--requeue` plus per-row resume recovered it without duplicates.
 
+## Findings: frontier bad cases (Obs 1, 2026-10-29)
+
+CPU analysis of the 350 Exp 3 generations: `src/scripts/analyze_frontier.py` →
+`results/phase1/mme_caption_frontier/analysis_summary.json`, figures in `docs/experiments/figures/obs1_*`.
+Exploratory (questions posed after the run). Page: `docs/experiments/obs1_frontier_bad_cases.qmd`.
+
+- **What goes stale**: with block = gen_length = 128 every reuse step recomputes all answer positions; only the
+  prompt's (visual + question) keys/values are reused. Staleness = prompt states that have not yet attended to the
+  answer tokens decoded since the last refresh.
+- **Near k = 2, Jaccard vs full tracks trajectory, not quality**: Jaccard(k=2, k=4) = 0.63 ≈ Jaccard(k=2, full)
+  = 0.61. Visual check of the 4 worst k = 2 images (Jaccard 0.24–0.33, one reader, qualitative): the k = 2
+  caption is as good or better in 3/4 (e.g. full says "two glasses of beer", image shows beer + water).
+- **Small perturbations flip trajectories**: k = 1 differs from full only by threshold-0.5 parallel decoding
+  (112 vs 128 forwards); 15/50 not identical, one at Jaccard 0.507.
+- **Divergence is decided early**: median first divergent answer token 22 at k = 2 and 4, 8.5 at k ≥ 8; 40% of
+  images split within 16 tokens at k = 2; Spearman(Jaccard, split position) = 0.75.
+- **Fragility is per image**: per-image Jaccard rank-correlates 0.50–0.75 across neighbouring cached k; not
+  explained by prompt length (Spearman −0.05). Low: artwork, celebrity; high: landmark.
+- All 350 outputs hit the 127-token cap: every caption is cut off.
+- Levers this suggests (each against fixed interval and same-budget random refresh): dense refresh at early
+  steps; refresh triggered by the number of tokens decoded since the last refresh; per-sample budget.
+- Consequence for the main line: the k = 2–4 target zone was defined by Jaccard; MathVerse accuracy must set the
+  anchors (claim C 5 in `docs/claims.qmd`).
+
 ## Next steps
 
 Done 2026-10-28: env + weights; Phase 0 smoke; paper settings (threshold 0.5, word-set Jaccard); unified loop
 with `RefreshPolicy` (G1(i)); `src/scripts/gate_check.py g1`; MME frontier (G1(ii)).
+
+Order set by the user on 2026-10-29: (1) MathVerse frontier, (2) Phase 2 error map with D3 / D5 first;
+ports (items 2–3 below) wait until G2 / G3.
 
 Remaining Phase 1 work (plan: frontier + baselines on captioning and MathVerse):
 

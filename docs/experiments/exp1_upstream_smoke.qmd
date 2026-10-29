@@ -1,0 +1,144 @@
+---
+title: "Exp 1 — Upstream smoke test (Phase 0)"
+subtitle: "Does upstream LLaDA-V + Fast-dLLM run on our cluster, and what does one sample cost?"
+date: 2026-10-28
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: false
+    html-math-method: katex
+---
+
+::: {.callout-note}
+**Status:** Complete. LLaDA-V (`GSAI-ML/LLaDA-V`, snapshot `a10ba17`) · 4 arms · 5 MME images · A100 80GB PCIe ·
+job 18490708, 11 min. Smoke only: it sizes later jobs and is **not** a reported result.
+:::
+
+---
+
+## What
+
+- Runs upstream code only: `generate_with_embeds` with and without the Fast-dLLM hook.
+- Checks that the environment, weights and vision tower load on a compute node.
+- Measures prompt length, per-sample time and peak memory for later runtime estimates.
+
+```{dot}
+//| label: fig-exp1-what
+//| fig-cap: "Exp 1 checks that upstream runs, then sizes every later job"
+//| fig-width: 7
+//| fig-height: 2.4
+digraph G {
+  bgcolor="transparent"
+  rankdir=LR
+  graph [ranksep=0.5, nodesep=0.5]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
+        shape=box, width=1.55, height=0.42]
+  edge [color="#6c757d", penwidth=1.4]
+  Env [label="Env + weights", fillcolor="#375a7f"]
+  Run [label="4 upstream arms"]
+  Size [label="Cost profile", fillcolor="#1a4a3a", color="#00bc8c"]
+  Env -> Run -> Size
+}
+```
+
+---
+
+## Why
+
+- Every later number depends on upstream code running unchanged on our GPUs.
+- Two plan assumptions needed a measurement: prompt length N (~1000 in the plan) and memory per KV copy.
+- If interval 1 differs from full recompute, the hook itself changes numerics, and G1(i) needs another reference.
+
+---
+
+## Hypotheses
+
+| ID | Statement | How to falsify |
+|:--:|-----------|----------------|
+| **H1** | Interval 1 without threshold reproduces full recompute | Any of 5 images not token-identical |
+| **H2** | Prompt length stays near the plan's ~1000 tokens | Typical N ≥ 3000 (storage estimate ≥ 3× low) |
+| **H3** | One KV copy fits a 40GB card | Peak memory > 40 GB |
+
+---
+
+## How
+
+- Data: 5 of the 50 MME images (`src/scripts/prepare_mme.py`, seed-0 sample of 1187 unique images).
+- Prompt "Please describe the image in detail."; gen_length = steps = block = 128.
+- Script: [`src/scripts/smoke_phase0.py`](../../src/scripts/smoke_phase0.py), job
+  [`slurm/phase0_smoke.sbatch`](../../slurm/phase0_smoke.sbatch).
+
+| Arm | Refresh interval k | Threshold | Purpose |
+|:---:|:---:|:---:|---|
+| **full** | — (no cache) | none | Reference output |
+| **fd_i1** | 1 | none | Hook numerics alone |
+| **fd_i32** | 32 | none | Cache effect alone |
+| **fd_i32_thr1** | 32 | 1 | Upstream `generate_demo.py` default |
+
+- Time = generation only, CUDA-synchronized, without model load or preprocessing.
+
+---
+
+## Results
+
+Source: [`results/phase0/smoke/smoke_summary.json`](../../results/phase0/smoke/smoke_summary.json).
+
+| Arm | s / sample | speedup vs full | forwards (refreshes) | identical to full | word Jaccard vs full |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| **full** | 58.4 | 1.00× | 128 (128) | — | 1.000 |
+| **fd_i1** | 49.3 | 1.18× | 128 (128) | 5/5 | 1.000 |
+| **fd_i32** | 6.6 | 8.89× | 128 (4) | 0/5 | 0.385 |
+| **fd_i32_thr1** | 5.3 | 11.07× | 100 (3.4) | 0/5 | 0.336 |
+
+- Prompt length N = 1042 / 3715 / 3714 / 2788 / 2990 (anyres visual tokens dominate).
+- Model load 27 s; peak memory 30.6 GB (full), 27.0 GB (hook arms).
+
+### Hypothesis assessment
+
+| Hypothesis | Verdict | Evidence |
+|:----------:|:-------:|---------|
+| **H1** (k=1 reproduces full) | **Confirmed** | 5/5 token-identical; the 1.18× comes from sdpa + autocast, not fewer forwards |
+| **H2** (N near 1000) | **Rejected** | N = 1.0k–3.7k, typical ~3k (3× the plan) |
+| **H3** (one KV copy fits 40GB) | **Confirmed** | 27–31 GB peak; two copies need the 80GB card |
+
+---
+
+## Insights
+
+- **Interval 1 is a true no-cache reference** (5/5 token-identical at 1.18×).
+  - G1(i) can test our loop against upstream directly; no extra reference is needed.
+- **Visual tokens make N ~3× larger than planned** (typical ~3k, max 3.7k).
+  - Raw KV dumps would be ~200 GB per sample; Phase 2 measures replacement error online only.
+- **The upstream default mixes two effects** (8.89× from the cache alone → 11.07× with threshold 1).
+  - The paper's settings had to be read off the paper before G1 (done: threshold 0.5, see Exp 3).
+
+---
+
+## Takeaway
+
+Upstream runs unchanged on our cluster, and interval 1 equals full recompute token-for-token. Prompt length is
+3× the plan's figure, so Phase 2 keeps replacement error online and requests 80GB cards. The run fixed
+the cost profile used in every later estimate (`.claude/cluster.md`).
+
+---
+
+## Connections
+
+- **Exp 2** ([unified-loop identity](exp2_loop_identity.qmd)): uses fd_i1 = full as its starting point.
+- **Exp 3** ([MME frontier](exp3_mme_frontier.qmd)): uses the paper's threshold 0.5, settled after this run.
+- **C 1** ([Claims](../claims.qmd#c1)): first piece of the reproduction evidence.
+
+---
+
+::: {.grid}
+::: {.g-col-4}
+[$\leftarrow$ Experiments dashboard](overview.qmd)
+:::
+::: {.g-col-4}
+:::
+::: {.g-col-4 .text-end}
+[Exp 2 — Unified-loop identity $\rightarrow$](exp2_loop_identity.qmd)
+:::
+:::

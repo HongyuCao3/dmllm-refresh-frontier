@@ -1,86 +1,104 @@
 ---
-title: "Method Overview"
+title: "Method Overview — Unified refresh loop"
 ---
 
-## What — Inputs, Outputs, and Modules
+## What — Inputs, outputs and modules
 
-- **Input**: [describe modality, shape — e.g., tabular features `[B × D]`, image `[B × C × H × W]`]
-- **Output**: [describe target — e.g., class logits `[B × C]`, regression scalar `[B × 1]`]
-- **Module A** *(Component A)*: [one-line role — e.g., encodes raw features into a latent representation]
-- **Module B** *(Component B)*: [one-line role — e.g., maps latent representation to prediction and loss]
-- **Supporting**: DataModule supplies batches; Trainer orchestrates the loop; MLflow records all runs
+- No new method exists yet; this page describes the harness every policy plugs into.
+- **Loop** [`src/methods/refresh/loop.py`](../../src/methods/refresh/loop.py): upstream's Fast-dLLM loop,
+  with the refresh test delegated to a policy (token-identical to upstream, Exp 2).
+- **Policies** [`src/methods/refresh/policies.py`](../../src/methods/refresh/policies.py):
+  `FixedInterval(k)` (Fast-dLLM) and `Schedule(steps)` (static schedules, oracle).
+- **Runner** [`src/scripts/run_campaign.py`](../../src/scripts/run_campaign.py): one model load, one task,
+  many policies; one jsonl row per (arm, sample), resumable.
 
-## Why — Architectural Intuition
-
-- **Why this decomposition**: separating representation learning (A) from prediction (B) keeps each module independently testable and swappable
-- **Component A is prerequisite**: B consumes A's output — A must run first; B has no raw-input path
-- **Joint effect**: [describe the synergy — e.g., A's normalised embeddings ensure B's gradient is well-scaled]
-- **Without A**: [e.g., feeding raw features directly to B degrades performance by X% — see ablation]
-- **Without B**: [e.g., A alone produces embeddings with no task-specific objective signal]
+| Module | Input | Output |
+|---|---|---|
+| Policy | global step t, step within block i | refresh yes / no |
+| Loop | prompt embeddings (N × 4096 hidden), policy, gen settings | answer tokens, per-step trace (refreshed, tokens decoded) |
+| Runner | campaign json | generations.jsonl with time, forwards, refreshes, r |
 
 ```{dot}
 //| label: fig-method-overview
-//| fig-cap: "Method overview: inputs → modules → outputs with dependency flow"
+//| fig-cap: "Each step: the policy decides refresh or reuse, then the loop decodes"
 //| fig-width: 7
-//| fig-height: 3.5
+//| fig-height: 2.8
 digraph G {
   bgcolor="transparent"
   rankdir=TB
-  graph [ranksep=0.55, nodesep=0.48]
+  graph [ranksep=0.5, nodesep=0.5]
   node [style=filled, fillcolor="#2c3035", color="#4a9eda",
         fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
-        shape=box, width=1.6, height=0.42]
+        shape=box, width=1.55, height=0.42]
   edge [color="#6c757d", penwidth=1.4]
-
-  subgraph row1 {
-    rank=same
-    DM  [label="DataModule",   fillcolor="#375a7f"]
-    Cfg [label="Hydra Config", fillcolor="#375a7f"]
-  }
-  subgraph row2 {
-    rank=same
-    CA [label="Component A"]
-    CB [label="Component B"]
-  }
-  subgraph row3 {
-    rank=same
-    Tr  [label="Trainer",   fillcolor="#1a4a3a", color="#00bc8c"]
-    MLf [label="MLflow",    fillcolor="#1a4a3a", color="#00bc8c"]
-    Inf [label="Inference", fillcolor="#1a4a3a", color="#00bc8c"]
-  }
-
-  DM  -> CA  DM  -> CB
-  Cfg -> CA  Cfg -> CB
-  CA  -> CB [label=" feeds", fontcolor="#adb5bd", fontsize=9]
-  CB  -> Tr
-  Tr  -> MLf
-  CB  -> Inf
+  S [label="Step t", fillcolor="#375a7f"]
+  P [label="Policy"]
+  {rank=same; F [label="Full forward"]; C [label="Block forward"]}
+  D [label="Decode tokens", fillcolor="#1a4a3a", color="#00bc8c"]
+  S -> P
+  P -> F [label="refresh", fontcolor="#adb5bd", fontsize=9]
+  P -> C [label="reuse", fontcolor="#adb5bd", fontsize=9]
+  F -> D
+  C -> D
 }
 ```
 
-<details>
-<summary><strong>How — Component Interaction Details</strong></summary>
+## Why — What a refresh buys
 
-**Training path** (`Trainer.fit`):
+- **Refresh step**: one forward over all N + gen_length positions; stores prompt keys and values.
+- **Reuse step**: a forward over the current block only, attending to the stored prompt keys and values.
+- With block = gen_length (captions), every answer position is recomputed at every step.
+- So only the prompt's keys and values go stale: they were computed before the latest answer tokens existed.
+- Bidirectional attention lets prompt states depend on answer tokens; that dependence is the error source.
+- Cost per image (Exp 3, A100 80GB): refresh-every-step 48.3 s vs k = 32 6.3 s, at 111–114 forwards each.
 
-1. `DataModule` yields batch `(x, y)` of shape `[B × D]`, `[B]`
-2. `Component A` transforms `x` → embedding `h` of shape `[B × H]`
-3. `Component B` takes `h` → computes logits + loss; gradients flow back through both
-4. Optimiser updates both A and B jointly; `ReduceLROnPlateau` monitors `val_loss` (LR scheduling is local to the method, not the experiment evaluation)
-5. Best checkpoint saved by `cfg.experiment.monitor` (default: `val_acc`) to `latest_checkpoint.json`. Loss-as-monitor is permitted only when `cfg.experiment.kind=convergence`.
+```{dot}
+//| label: fig-method-why
+//| fig-cap: "Staleness lives in the prompt cache, refreshed only on refresh steps"
+//| fig-width: 7
+//| fig-height: 2.4
+digraph G {
+  bgcolor="transparent"
+  rankdir=LR
+  graph [ranksep=0.5, nodesep=0.5]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
+        shape=box, width=1.55, height=0.42]
+  edge [color="#6c757d", penwidth=1.4]
+  A [label="New answer tokens", fillcolor="#375a7f"]
+  K [label="Prompt KV stale", fillcolor="#4a2040", color="#e74c3c"]
+  E [label="Token flips"]
+  A -> K -> E
+}
+```
 
-**Inference path** (`mode=infer`):
+## Candidate levers (from Obs 1)
 
-1. Load checkpoint; restore both A and B weights
-2. Run `predict_step`: A encodes → B produces `{"pred": Tensor, "prob": Tensor, "meta": {...}}`
-3. Inference pipeline aggregates batches → analyzers (confusion matrix, calibration, t-SNE)
+| Lever | Evidence | Policy form |
+|---|---|---|
+| Refresh early steps densely | Divergence median at answer token 22 (k = 2); Spearman 0.75 with final agreement | `Schedule`: dense first m steps, sparse after |
+| Refresh after many new tokens | Staleness = prompt not yet updated with new answer tokens | Trigger on tokens decoded since last refresh |
+| Per-sample budget | Fragility rank-correlates 0.50–0.75 across k | Budget from a cheap fragility signal |
 
-**Shared state between A and B**:
+- Each lever is compared with fixed interval and same-budget random refresh before any claim.
 
-- A and B share no parameters; they communicate only through the embedding tensor `h`
-- Config keys are namespaced: `method.comp_a.*` and `method.comp_b.*` — no cross-coupling
-
-**Extensibility**: to add Component C, implement `model.py` + `lit_module.py`, register with
-`@register("name")`, add `configs/method/<name>.yaml` with `_target_`. No changes to train loop.
-
-</details>
+```{dot}
+//| label: fig-method-levers
+//| fig-cap: "Three levers, one control"
+//| fig-width: 7
+//| fig-height: 2.4
+digraph G {
+  bgcolor="transparent"
+  rankdir=TB
+  graph [ranksep=0.5, nodesep=0.5]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
+        shape=box, width=1.55, height=0.42]
+  edge [color="#6c757d", penwidth=1.4]
+  {rank=same; L1 [label="Early dense"]; L2 [label="Token trigger"]; L3 [label="Per-sample"]}
+  R [label="vs random, same r", fillcolor="#375a7f"]
+  L1 -> R
+  L2 -> R
+  L3 -> R
+}
+```

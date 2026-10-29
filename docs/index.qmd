@@ -1,52 +1,34 @@
 ---
-title: "Research Dashboard"
+title: "Research Dashboard — dmllm-refresh-frontier"
 ---
 
-## Project Overview
+## Project overview
 
-> **Replace this tagline** with one sentence stating the core contribution.
+> Reach the output quality of fixed-interval KV refresh on LLaDA-V with fewer full refreshes, i.e. lower
+> wall-clock at matched quality.
 
-- **Problem**: [Domain] + [specific challenge] — why it matters now
-- **Approach**: [Key method idea] — what makes it different
-- **Outcome**: Target metric improvement over baseline on [dataset/benchmark]
+- **Problem**: Fast-dLLM refreshes the cache every k steps; high-agreement settings give only ~1.3–2.5× speedup.
+- **Approach**: map where staleness flips tokens, then spend refreshes there (static, then cheap online policies).
+- **Outcome target**: ≥ 25% lower wall-clock than fixed interval at matched quality on 2 of 3 anchors (G4).
+- **Status (2026-10-29)**: Phase 1 reference done (G1 PASS); bad-case analysis done (Obs 1); Phase 2 next.
 
 ```{dot}
 //| label: fig-pipeline
-//| fig-cap: "End-to-end research pipeline"
+//| fig-cap: "Plan: reference, error map, oracle, policies; each phase ends in a gate"
 //| fig-width: 7
-//| fig-height: 3.5
+//| fig-height: 2.8
 digraph G {
   bgcolor="transparent"
   rankdir=TB
-  graph [ranksep=0.55, nodesep=0.55]
+  graph [ranksep=0.5, nodesep=0.5]
   node [style=filled, fillcolor="#2c3035", color="#4a9eda",
         fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
-        shape=box, width=1.6, height=0.45, margin="0.15,0.08"]
+        shape=box, width=1.55, height=0.42]
   edge [color="#6c757d", penwidth=1.4]
-
-  subgraph row1 {
-    rank=same
-    Task [label="Task Def", fillcolor="#375a7f"]
-    Lit  [label="Literature", fillcolor="#375a7f"]
-    Claim [label="Claims", fillcolor="#375a7f"]
-  }
-  subgraph row2 {
-    rank=same
-    Method [label="Method", fillcolor="#1a4a3a", color="#00bc8c"]
-  }
-  subgraph row3 {
-    rank=same
-    Main  [label="Main Expt", fillcolor="#4a2040"]
-    Abl   [label="Ablation", fillcolor="#4a2040"]
-    HP    [label="HP Search", fillcolor="#4a2040"]
-  }
-
-  Task  -> Method
-  Lit   -> Method
-  Claim -> Method
-  Method -> Main
-  Method -> Abl
-  Method -> HP
+  {rank=same; P1 [label="Frontier G1", fillcolor="#1a4a3a", color="#00bc8c"]; P2 [label="Error map G2"]; P3 [label="Oracle G3"]}
+  {rank=same; P4 [label="Policies G4"]; P5 [label="Validation"]}
+  P1 -> P2 -> P3
+  P3 -> P4 -> P5
 }
 ```
 
@@ -57,72 +39,64 @@ digraph G {
 ::: {.card-grid}
 <div class="nav-card">
 <a href="task_definition.qmd">Task Definition</a>
-<p>Problem scope, RQs, evaluation criteria</p>
-</div>
-<div class="nav-card">
-<a href="literature_review.qmd">Literature Review</a>
-<p>Related work, gaps, positioning</p>
+<p>Objective, tasks, metrics, scope</p>
 </div>
 <div class="nav-card">
 <a href="claims.qmd">Claims</a>
-<p>Hypotheses, evidence, falsification</p>
+<p>Gates G1–G4, claims C 1–C 5, status</p>
 </div>
 <div class="nav-card">
 <a href="method/overview.qmd">Method</a>
-<p>Architecture, components, design choices</p>
+<p>Unified refresh loop, candidate levers</p>
 </div>
 <div class="nav-card">
 <a href="experiments/overview.qmd">Experiments</a>
-<p>Setup, results, analysis</p>
+<p>Exp 1–3, Obs 1, planned Exp 4–5</p>
 </div>
 <div class="nav-card">
-<a href="weekly_progress.qmd">Weekly Reports</a>
-<p>Progress summary &amp; slide deck templates</p>
+<a href="PROGRESS.md">Run log</a>
+<p>Jobs, decisions, lever maps</p>
+</div>
+<div class="nav-card">
+<a href="literature_review.qmd">Literature Review</a>
+<p>Template, not yet filled</p>
 </div>
 :::
 
 ---
 
-## Key Results at a Glance
+## Key results at a glance
 
 ::: {.metric-row}
 <div class="metric-badge">
-<div class="value">—</div>
-<div class="label">Primary Metric</div>
+<div class="value">30/30</div>
+<div class="label">Loop = upstream (G1 i)</div>
 </div>
 <div class="metric-badge">
-<div class="value">—</div>
-<div class="label">vs. Baseline Δ</div>
+<div class="value">6/6</div>
+<div class="label">Speedups within ±20% (G1 ii)</div>
 </div>
 <div class="metric-badge">
-<div class="value">—</div>
-<div class="label">Dataset Size</div>
+<div class="value">0.615</div>
+<div class="label">Jaccard at k = 2 (paper 0.666)</div>
 </div>
 <div class="metric-badge">
-<div class="value">—</div>
-<div class="label">Model Params</div>
+<div class="value">0.63</div>
+<div class="label">k = 2 vs k = 4 agreement (≈ vs full)</div>
 </div>
 :::
 
-> Fill in final numbers after main experiment is complete.
+- Reference numbers only; no policy result exists yet.
 
 ---
 
-## Reproduction Quickstart
+## Reproduction quickstart
 
 ```bash
-# 1. Setup
-pip install -r requirements.txt
-
-# 2. Debug run (fast, no logging)
-python -m src.main mode=debug dataset=<dataset> method=<method>
-
-# 3. Full training
-python -m src.main dataset=<dataset> method=<method>
-
-# 4. Hyperparameter search
-python -m src.main mode=optuna optuna.n_trials=50
-
-# 5. Inference
-python -m src.main mode=infer inference.checkpoint_path=<ckpt>
+bash scripts/setup_env.sh                 # CPU node: env llada-v, third_party clones
+bash scripts/download_weights.sh          # CPU node: LLaDA-V + SigLIP-2 into /scratch HF cache
+sbatch slurm/campaign.sbatch configs/campaigns/mme_caption_frontier.json   # Exp 3
+python src/scripts/gate_check.py g1       # G1 verdict
+python src/scripts/analyze_frontier.py    # Obs 1 summary + figures (llada-v env)
+cd docs && quarto render
 ```

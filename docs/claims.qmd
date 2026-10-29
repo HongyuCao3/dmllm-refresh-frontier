@@ -2,165 +2,104 @@
 title: "Claims"
 ---
 
-## Main Hypothesis
+## Main hypothesis
 
-> **H0 (null)**: The proposed method performs no better than [strongest baseline] on [metric] under [conditions].
+> **H0 (null)**: On LLaDA-V, no refresh policy beats fixed-interval refresh: at matched quality, its wall-clock is
+> not significantly lower than fixed interval k at the anchors k = 2 / 4 / 8.
 >
-> **H1 (alternative)**: The proposed method statistically significantly outperforms [strongest baseline] by at least [δ] on [metric].
+> **H1 (alternative)**: Some cheap policy cuts matched-quality wall-clock by ≥ 25% on ≥ 2 anchors, Holm-significant,
+> reaching ≥ 50% of the oracle's gain (gate G4).
 
-- Decision threshold: p < 0.05 (two-tailed), effect size ≥ [δ]
-- Test: [paired t-test / Wilcoxon signed-rank / bootstrap CI]
+- Matched quality: not significantly below the anchor (paired test) and within 1 accuracy point (or 0.01 Jaccard).
+- Tests: McNemar (exact) on correctness; Wilcoxon signed-rank on wall-clock and agreement; Holm over 3 anchors.
+- Uncertainty: paired bootstrap `Δ [95% CI] (n)` over samples; deterministic decoding, one run per arm.
+- Thresholds frozen 2026-10-27 (`.claude/research.md`).
 
 ```{dot}
 //| label: fig-hypothesis
-//| fig-cap: "Hypothesis structure: null vs. alternative"
+//| fig-cap: "Gates G1 to G4 lead from reproduction to a policy win"
 //| fig-width: 7
 //| fig-height: 2.8
 digraph G {
   bgcolor="transparent"
   rankdir=TB
-  graph [ranksep=0.52, nodesep=0.55]
-  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
-        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
-        shape=box, width=1.6, height=0.42]
-  edge [color="#6c757d", penwidth=1.4]
-
-  subgraph row1 {
-    rank=same
-    Null [label="Null H0", fillcolor="#4a2040", color="#e74c3c"]
-    Alt  [label="Alt H1", fillcolor="#1a4a3a", color="#00bc8c"]
-  }
-  subgraph row2 {
-    rank=same
-    Test [label="Statistical Test", fillcolor="#375a7f"]
-  }
-  subgraph row3 {
-    rank=same
-    Reject [label="Reject H0", fillcolor="#1a4a3a", color="#00bc8c"]
-    Fail   [label="Fail to Reject", fillcolor="#4a2040", color="#e74c3c"]
-    Revise [label="Revise Claim"]
-  }
-
-  Null -> Test  Alt -> Test
-  Test -> Reject  Test -> Fail
-  Fail -> Revise
-}
-```
-
----
-
-## Supporting Claims
-
-Each claim below is independently testable and maps to a specific experiment.
-
-- **Claim 1**: [specific, measurable statement — e.g., "Component X improves F1 by ≥ 2pp"]
-  - Evidence needed: ablation removing Component X
-  - Falsification: F1 delta < 2pp in ablation
-- **Claim 2**: [specific, measurable statement]
-  - Evidence needed: [experiment type]
-  - Falsification: [condition that disproves]
-- **Claim 3**: [specific, measurable statement]
-  - Evidence needed: [experiment type]
-  - Falsification: [condition that disproves]
-
-```{dot}
-//| label: fig-claims
-//| fig-cap: "Claim → experiment → evidence chain"
-//| fig-width: 7
-//| fig-height: 3.5
-digraph G {
-  bgcolor="transparent"
-  rankdir=TB
-  graph [ranksep=0.52, nodesep=0.5]
-  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
-        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
-        shape=box, width=1.6, height=0.42]
-  edge [color="#6c757d", penwidth=1.4]
-
-  subgraph row1 {
-    rank=same
-    C1 [label="Claim 1", fillcolor="#375a7f"]
-    C2 [label="Claim 2", fillcolor="#375a7f"]
-    C3 [label="Claim 3", fillcolor="#375a7f"]
-  }
-  subgraph row2 {
-    rank=same
-    X1 [label="Main Expt"]
-    X2 [label="Ablation"]
-    X3 [label="HP Search"]
-  }
-  subgraph row3 {
-    rank=same
-    E1 [label="Evidence 1", fillcolor="#1a4a3a", color="#00bc8c"]
-    E2 [label="Evidence 2", fillcolor="#1a4a3a", color="#00bc8c"]
-    E3 [label="Evidence 3", fillcolor="#1a4a3a", color="#00bc8c"]
-  }
-  subgraph row4 {
-    rank=same
-    V [label="Validated", fillcolor="#1a4a3a", color="#00bc8c", width=5.0]
-  }
-
-  C1 -> X1  C2 -> X2  C3 -> X3
-  X1 -> E1  X2 -> E2  X3 -> E3
-  E1 -> V  E2 -> V  E3 -> V
-}
-```
-
----
-
-## Assumptions and Risks
-
-- **Assumption A**: [e.g., data is i.i.d.] — risk: if violated, Claim 1 may not hold
-- **Assumption B**: [e.g., single-GPU training suffices] — risk: may affect reproducibility
-- **Assumption C**: [e.g., train/test domains are aligned] — risk: distribution shift
-
-```{dot}
-//| label: fig-risks
-//| fig-cap: "Assumption → risk → mitigation"
-//| fig-width: 7
-//| fig-height: 2.8
-digraph G {
-  bgcolor="transparent"
-  rankdir=LR
-  graph [ranksep=0.6, nodesep=0.45]
+  graph [ranksep=0.5, nodesep=0.5]
   node [style=filled, fillcolor="#2c3035", color="#4a9eda",
         fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
         shape=box, width=1.55, height=0.42]
   edge [color="#6c757d", penwidth=1.4]
-
-  subgraph col1 {
-    rank=same
-    A1 [label="Assumption A", fillcolor="#375a7f"]
-    A2 [label="Assumption B", fillcolor="#375a7f"]
-    A3 [label="Assumption C", fillcolor="#375a7f"]
-  }
-  subgraph col2 {
-    rank=same
-    R1 [label="Risk 1", fillcolor="#4a2040", color="#e74c3c"]
-    R2 [label="Risk 2", fillcolor="#4a2040", color="#e74c3c"]
-    R3 [label="Risk 3", fillcolor="#4a2040", color="#e74c3c"]
-  }
-  subgraph col3 {
-    rank=same
-    M1 [label="Mitigation 1", fillcolor="#1a4a3a", color="#00bc8c"]
-    M2 [label="Mitigation 2", fillcolor="#1a4a3a", color="#00bc8c"]
-    M3 [label="Mitigation 3", fillcolor="#1a4a3a", color="#00bc8c"]
-  }
-
-  A1 -> R1 -> M1
-  A2 -> R2 -> M2
-  A3 -> R3 -> M3
+  {rank=same; G1 [label="G1 frontier", fillcolor="#1a4a3a", color="#00bc8c"]; G2 [label="G2 concentration"]}
+  {rank=same; G3 [label="G3 oracle"]; G4 [label="G4 policy"]}
+  H [label="Reject H0", fillcolor="#375a7f"]
+  G1 -> G2 -> G3 -> G4 -> H
 }
 ```
 
 ---
 
-## Claim Status Tracker
+## Supporting claims
+
+- [**C 1**]{#c1} (reproduction): our loop equals upstream, and our fixed-interval frontier matches the published one.
+  - Evidence: [Exp 2](experiments/exp2_loop_identity.qmd) (30/30 identical), [Exp 3](experiments/exp3_mme_frontier.qmd).
+  - Falsification: G1 thresholds (±20% speedup, ±0.05 Jaccard, monotone).
+- [**C 2**]{#c2} (concentration): replacement error is concentrated in a few (position group × layer × step) cells.
+  - Evidence needed: Exp 5 error map, D1–D5.
+  - Falsification: top 20% of cells hold < 50% of top-1 flips on every main task (G2).
+- [**C 3**]{#c3} (headroom): a hindsight-optimal schedule is ≥ 40% faster than fixed interval at matched quality.
+  - Evidence needed: Phase 3 oracle.
+  - Falsification: < 40% on 2 or more of the anchors k = 2 / 4 / 8 (G3).
+- [**C 4**]{#c4} (policy): a static or cheap online policy reaches the G4 bar.
+  - Evidence needed: Phase 4 policies vs fixed interval and same-budget random refresh.
+  - Falsification: G4 not met.
+- [**C 5**]{#c5} (metric): near k = 2, agreement with full recompute measures trajectory choice, not caption quality.
+  - Evidence: [Obs 1](experiments/obs1_frontier_bad_cases.qmd) (k = 2 vs k = 4 agree 0.63 ≈ k = 2 vs full 0.61;
+    3 of 4 worst captions as good or better).
+  - Falsification: on MathVerse, accuracy at k = 2 falls ≥ 1 point below full with McNemar p < 0.05.
+
+```{dot}
+//| label: fig-claims
+//| fig-cap: "Claim to evidence; C 5 decides which anchors C 3 and C 4 use"
+//| fig-width: 7
+//| fig-height: 2.8
+digraph G {
+  bgcolor="transparent"
+  rankdir=TB
+  graph [ranksep=0.5, nodesep=0.5]
+  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
+        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
+        shape=box, width=1.55, height=0.42]
+  edge [color="#6c757d", penwidth=1.4]
+  {rank=same; C1 [label="C 1 confirmed", fillcolor="#1a4a3a", color="#00bc8c"]; C5 [label="C 5 supported", fillcolor="#375a7f"]; C2 [label="C 2 pending"]}
+  {rank=same; C3 [label="C 3 pending"]; C4 [label="C 4 pending"]}
+  C1 -> C2
+  C5 -> C3
+  C2 -> C3 -> C4
+}
+```
+
+---
+
+## Assumptions and risks
+
+- **Error is not uniform** — if it is, fixed interval is near-optimal (C 2 fails).
+  - Response (user decision 2026-10-29): no pivot to an analysis paper; read bad cases for an improvement lever.
+- **Trajectories are chaotic** — tiny changes flip whole captions (Obs 1: 15/50 flips from parallel decoding alone).
+  - Mitigation: task accuracy as primary metric; paired tests; 3-seed sign check in the appendix.
+- **Gains overlap with Elastic-Cache** — novelty would shrink.
+  - Mitigation: stacking experiment in Phase 5 (port deferred until G2 / G3).
+- **Index overhead** — lower r but no wall-clock gain.
+  - Mitigation: refresh contiguous groups and layer ranges; always report wall-clock.
+
+---
+
+## Claim status tracker
 
 | Claim | Experiment | Status | Notes |
 |-------|-----------|--------|-------|
-| Claim 1 | Main experiment | ⬜ Pending | — |
-| Claim 2 | Ablation | ⬜ Pending | — |
-| Claim 3 | HP search | ⬜ Pending | — |
+| C 1 reproduction | Exp 2, Exp 3 | ✅ Confirmed | G1 PASS with a recorded deviation (k = 2 Jaccard, 0.001) |
+| C 2 concentration | Exp 5 | ⬜ Pending | Obs 1 hints at early-step concentration |
+| C 3 headroom | Phase 3 oracle | ⬜ Pending | Anchors depend on C 5 |
+| C 4 policy | Phase 4 | ⬜ Pending | — |
+| C 5 metric | Obs 1, Exp 4 | 🔄 Supported, untested on accuracy | Exploratory; decided by MathVerse |
 
 > Update status: ⬜ Pending → 🔄 Running → ✅ Confirmed / ❌ Refuted
