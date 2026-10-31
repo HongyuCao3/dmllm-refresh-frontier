@@ -1,0 +1,31 @@
+{
+ "gate": "A(i)",
+ "verdict": "PASS",
+ "job": 18831336,
+ "gpu": "NVIDIA A100 80GB PCIe",
+ "setting": "MathVerse vision-dominant first 5, gen 256, block 32, prefix cache refreshed at block starts",
+ "identical": {
+  "steps=256 threshold=0.5 ours_confidence": "5/5",
+  "steps=256 threshold=0.5 ours_upstream_path": "5/5",
+  "steps=256 threshold=None ours_confidence": "5/5",
+  "steps=256 threshold=None ours_upstream_path": "5/5",
+  "steps=64 threshold=0.5 ours_confidence": "5/5",
+  "steps=64 threshold=0.5 ours_upstream_path": "5/5",
+  "steps=64 threshold=None ours_confidence": "5/5",
+  "steps=64 threshold=None ours_upstream_path": "5/5"
+ },
+ "gen_s_mean": {
+  "steps=256 threshold=0.5 ours_confidence": 8.24,
+  "steps=256 threshold=0.5 ours_upstream_path": 8.24,
+  "steps=256 threshold=0.5 upstream": 8.24,
+  "steps=256 threshold=None ours_confidence": 14.69,
+  "steps=256 threshold=None ours_upstream_path": 14.69,
+  "steps=256 threshold=None upstream": 14.79,
+  "steps=64 threshold=0.5 ours_confidence": 8.25,
+  "steps=64 threshold=0.5 ours_upstream_path": 8.25,
+  "steps=64 threshold=0.5 upstream": 8.24,
+  "steps=64 threshold=None ours_confidence": 5.23,
+  "steps=64 threshold=None ours_upstream_path": 5.22,
+  "steps=64 threshold=None upstream": 5.22
+ }
+}
