@@ -70,13 +70,17 @@
   only, never `final_metric`.
 
 ### Project exception: repeats for deterministic decoding (user decision, 2026-10-27)
-- This project is inference-only and decodes deterministically (LLaDA-V default:
+- This project keeps the base model frozen (only a small commit policy is trained,
+  from plan v3 phase D on) and decodes deterministically (LLaDA-V default:
   greedy with low-confidence remasking), so repeated seeds give near-zero std and
   the ">= 3 seeds" rule above carries no information. For this project it is
   replaced by: every arm runs on the same held-out samples, and a comparison is
   reported as the paired difference **`Δ [95% CI] (n)`** from a paired bootstrap
   over samples, with a paired test. Full protocol: `.claude/research.md`,
   *Repetition and variance*.
+- The exception covers decoding comparisons only. A trained commit policy (plan v3
+  phase D) is a trained model: it uses >= 3 training seeds, and the reported
+  number is the paired decoding comparison per seed plus the spread across seeds.
 - Everything else above still holds: held-out test samples only, no single-run
   point estimate as a headline, no selection on the reporting split, no
   method-internal signal (replacement error, probe scores) reported as quality.

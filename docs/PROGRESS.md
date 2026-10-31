@@ -1,9 +1,10 @@
 # PROGRESS — dmllm-refresh-frontier run log
 
-Authoritative run log, decisions and lever maps. Plan: `plans/research_plan_v2.md`. Rules: `.claude/research.md`,
+Authoritative run log, decisions and lever maps. Plan: `plans/research_plan_v3.md` (main line: commit policies);
+`plans/research_plan_v2.md` (cache refresh) is a concluded sub-direction, logged below as Phases 0–2. Rules: `.claude/research.md`,
 `.claude/cluster.md`. Newest entries at the bottom of each section.
 
-## Status (2026-10-29)
+## Status (2026-10-30)
 
 | Plan item | Status |
 |---|---|
@@ -15,7 +16,8 @@ Authoritative run log, decisions and lever maps. Plan: `plans/research_plan_v2.m
 | Phase 1 | G1 PASS with recorded deviation (2026-10-28): unified loop token-identical to upstream; MME frontier reproduced. Bad-case analysis of the frontier done (Obs 1, 2026-10-29). MathVerse frontier (Exp 4) **done 2026-10-29** (job 18603291, n = 300): no accuracy loss at any k up to 32; no lever-map row fits, decision with the user. Elastic-Cache / dKV-Cache ports deferred until G2 / G3 (user, 2026-10-29) |
 | Docs | Quarto site filled 2026-10-29: Exp 1–3, Obs 1, claims C 1–C 5, task definition, method (loop), dashboard. `cd docs && quarto render` |
 | Phase 2 | Exp 5 done 2026-10-29 (job 18601279): **G2 PASS on captions** (60.8%); MathVerse not probed. Page `docs/experiments/exp5_replacement_error_map.qmd` |
-| Phases 3–5 | not started |
+| Phases 3–5 (v2) | **not run**: sub-direction concluded 2026-10-30 (see Decisions). Elastic-Cache / dKV-Cache ports dropped unless phase E needs them |
+| Plan v3 | **draft 2026-10-30, revised after a literature check the same day**: `plans/research_plan_v3.md`; gates A–E proposed in `.claude/research.md`, to be frozen by the user before phase A runs |
 
 ## Decisions (user)
 
@@ -27,6 +29,7 @@ Authoritative run log, decisions and lever maps. Plan: `plans/research_plan_v2.m
 | 2026-10-28 | **G1 accepted as PASS with a recorded deviation**: interval-2 Jaccard 0.615 vs paper 0.666 misses the ±0.05 tolerance by 0.001; the paper's value lies inside our 95% bootstrap CI at every interval, and the paper's 50-image subset is unpublished. Thresholds unchanged. The 50-image frontier (`results/phase1/mme_caption_frontier/g1_summary.json`) is the reference curve |
 
 | 2026-10-29 | **Order of work**: record and analyse all Phase 0–1 results in the docs first; then (1) MathVerse frontier, (2) Phase 2 error map, D3 and D5 first. Elastic-Cache / dKV-Cache ports wait until G2 / G3 |
+| 2026-10-30 | **Main line changed to commit (unmasking) policies, plan v3.** Cache refresh becomes a concluded sub-direction: with block = gen_length the 7.3 s per-item floor caps any refresh saving at ~12% (< G3's 40%), and Exp 4 shows staleness flips answers symmetrically (lost ≈ gained), which points at commit decisions, not cache age. Base model stays frozen; a small commit policy may be trained from phase D on (`CLAUDE.md`, `.claude/global.md`, `.claude/research.md` updated) |
 | 2026-10-29 | **No analysis-paper fallback for now**: if G2 or G3 fails, the response is bad-case analysis aimed at an improvement and a positive result, not a pivot to the "error is uniform" paper. Thresholds unchanged |
 
 ## Findings so far (setup)
@@ -83,6 +86,30 @@ Exploratory (questions posed after the run). Page: `docs/experiments/obs1_fronti
   anchors (claim C 5 in `docs/claims.qmd`).
 
 ## Next steps
+
+### Plan v3 (2026-10-30)
+
+Open decisions for the user before phase A runs: (1) freeze gates A–E (proposals in `.claude/research.md`);
+(2) the policy training set (candidates: Geo170K, MathV360K, GeoQA train; any MathVerse version is excluded,
+it shares the evaluation problems); (3) K and the perturbation for the phase-B order upper bound.
+
+Phase A (block baselines), no new model code beyond a commit-policy interface:
+
+1. Add `src/methods/commit/` with a `CommitPolicy` interface on the unified loop (`src/methods/refresh/loop.py`):
+   top-k confidence (LLaDA), confidence threshold (Fast-dLLM), random order at the same NFE.
+2. Block decoding (block 32, gen_length 256) on the 300 MathVerse vision-dominant problems; G-A token-identity
+   test against upstream LLaDA-V block decoding.
+3. Measure s/problem with blocks; update the runtime table in plan v3 (estimate before measuring: 10–30 s per
+   problem, 1–2.5 GPU-h per arm).
+4. Write the phase-A lever map into the docs before the run (`.claude/research.md`, *Lever maps*).
+
+Literature check (2026-10-30, details in plan v3 "已有工作与空白"): the closest prior work is 2607.08056 (GRPO
+order module on MMaDA-8B, multimodal understanding incl. MathVista; no MathVerse, no LLaDA-V, no NFE, no
+image-token analysis, no cache). SAS (2606.23567) trains an order policy over a frozen LLaDA-8B with GRPO. Both
+become phase-D baselines. A new phase 0 (read both in full: frozen base?, code?, inputs and reward, NFE) comes
+before phase A; the proposed gate B threshold drops from 5 to 3 points.
+
+### Plan v2 (concluded sub-direction; kept for the record)
 
 Done 2026-10-28: env + weights; Phase 0 smoke; paper settings (threshold 0.5, word-set Jaccard); unified loop
 with `RefreshPolicy` (G1(i)); `src/scripts/gate_check.py g1`; MME frontier (G1(ii)).
