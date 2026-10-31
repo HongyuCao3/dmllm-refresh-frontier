@@ -12,6 +12,11 @@ are cited, not re-tested; the closest competitor is arXiv 2607.08056 (RL order p
 line (plan v3, "备用主线", user 2026-10-31) moves the question to Lafa, a text-only block-causal flow LM whose commit is a
 left prefix of each 4-token block; it is switched to only by the user.
 
+**Status 2026-10-31 (user decisions):** gate A judged FAIL (phase-A block baselines: commit order and step count move
+accuracy only within noise), so the v3 main line stopped; the Lafa backup line was then concluded after experiment E1
+(no speed headroom from draft order or time schedule in self-speculative decoding). The next direction is open; see
+`docs/PROGRESS.md`.
+
 The earlier main line, cache refresh scheduling at a lower refresh ratio r (`plans/research_plan_v2.md`,
 gates G1–G4), is a **concluded sub-direction** (user decision 2026-10-30): with block = gen_length, the
 7.3 s per-item floor caps any refresh saving at about 12%, below G3's 40%. Its code, campaigns and results stay
