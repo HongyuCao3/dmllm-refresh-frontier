@@ -10,10 +10,12 @@ Prompt: the VLAA answer-format directive (first or last line, e.g. "Answer with 
 Dedup (plan v3, "实验设置"): MathVerse collects its problems from GeoQA, Geometry3K and others, which VLAA's
 GeoQA170K also contains. A VLAA item is dropped if (a) its image's 64-bit difference hash is within Hamming
 distance `--max-ham` of any MathVerse testmini image (all versions), or (b) its question's word set has Jaccard
->= `--min-jac` with any MathVerse question. Both thresholds are conservative (drop when in doubt); the report
+>= `--min-jac` with any MathVerse question, or (c) "paraphrase": some MathVerse image within Hamming `--pair-ham`
+has a question with Jaccard >= `--pair-jac` (VLAA rewrites GeoQA questions, e.g. into variable form; a manual
+check of the (a)/(b) survivors found such pairs). All thresholds are conservative (drop when in doubt); the report
 lists the counts and example pairs for a manual check.
 
-CPU-only, interactive node, llada-v env, after the image tarballs are extracted under <out>/images/<source>/:
+CPU-only, interactive node, llada-v env, after each image tarball is extracted into <out>/images/<source>/ (it unpacks to <source>/<source>/...):
     python src/scripts/prepare_vlaa.py [--dev 200] [--seed 0]
 """
 import argparse
@@ -36,7 +38,9 @@ COT = {"mcq": "Please first conduct reasoning, and then answer the question and 
                 "e.g., 1, 2.5, 300, at the end.\nQuestion: "}
 OPTION = re.compile(r"^\s*\(?[A-F]\s*[.:：)]")
 DIRECTIVE = re.compile(r"(?i)letter|short and to the point|concise|brief|single (word|number)|only the (number|"
-                       r"answer)|answer (directly|only)|one word|just the (number|answer)|directly")
+                       r"answer)|answer (directly|only)|one word|just the (number|answer)|directly|brevity|minimal words|"
+                       r"shortest answer|one phrase|without elaboration|few words|succinct|essential information|"
+                       r"in one line")
 
 
 def strip_directive(q):
@@ -65,13 +69,17 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--max-ham", type=int, default=6)
     ap.add_argument("--min-jac", type=float, default=0.6)
+    ap.add_argument("--pair-ham", type=int, default=12)
+    ap.add_argument("--pair-jac", type=float, default=0.35)
     args = ap.parse_args()
 
     src = hf_hub_download("UCSC-VLAA/VLAA-Thinking", "VLAA-Thinking-GRPO-25K.json", repo_type="dataset")
     rows = [r for r in map(json.loads, (l for l in open(src) if l.strip())) if r["verifier_type"] in COT]
 
     mv = pq.read_table(hf_hub_download("CaraJ/MathVerse-lmmseval", "testmini.parquet", repo_type="dataset")).to_pylist()
-    mv_hash = np.stack([dhash(Image.open(io.BytesIO(r["image"]["bytes"]))) for r in mv if r.get("image")])
+    mv = [r for r in mv if r.get("image")]
+    mv_hash = np.stack([dhash(Image.open(io.BytesIO(r["image"]["bytes"]))) for r in mv])
+    mv_qwords = [words(r["question"]) for r in mv]
     mv_words = list({words(r["question"]) for r in mv if r["question"]})
     print(f"MathVerse testmini: {len(mv)} rows, {len(mv_hash)} images, {len(mv_words)} distinct questions", flush=True)
 
@@ -80,16 +88,21 @@ def main():
     for r in rows:
         q, rem = strip_directive(r["question"])
         removed_lines.update(l[:60] for l in rem)
-        img_path = os.path.join(args.out, "images", r["image"])
+        img_path = os.path.join(args.out, "images", r["image"].split("/")[0], r["image"])  # tarballs nest <source>/
         h = dhash(Image.open(img_path))
-        ham = np.unpackbits(mv_hash ^ h, axis=1).sum(1).min()
+        dist = np.unpackbits(mv_hash ^ h, axis=1).sum(1)
+        ham = dist.min()
         w = words(q)
         jac = max((len(w & m) / len(w | m) for m in mv_words if w and m), default=0.0)
-        reason = "image" if ham <= args.max_ham else "text" if jac >= args.min_jac else None
+        pair = max((len(w & mv_qwords[j]) / len(w | mv_qwords[j]) for j in np.where(dist <= args.pair_ham)[0]
+                    if w | mv_qwords[j]), default=0.0)
+        reason = ("image" if ham <= args.max_ham else "text" if jac >= args.min_jac
+                  else "paraphrase" if pair >= args.pair_jac else None)
         if reason:
             dropped[(reason, r["image"].split("/")[0])] += 1
-            if len(examples) < 20:
-                examples.append(dict(id=r["id"], reason=reason, ham=int(ham), jac=round(jac, 2), question=q[:200]))
+            if sum(e["reason"] == reason for e in examples) < 10:
+                examples.append(dict(id=r["id"], reason=reason, ham=int(ham), jac=round(jac, 2), pair_jac=round(pair, 2),
+                                     question=q[:200]))
             continue
         kept.append(dict(vlaa_id=r["id"], source=r["image"].split("/")[0], verifier_type=r["verifier_type"],
                          question_type="multi-choice" if r["verifier_type"] == "mcq" else "free-form",
@@ -107,7 +120,7 @@ def main():
                   kept_by_source=Counter(r["source"] for r in kept),
                   dev_by_source=Counter(r["source"] for r in kept[:args.dev]),
                   dropped={f"{a}/{b}": n for (a, b), n in dropped.items()}, max_ham=args.max_ham,
-                  min_jac=args.min_jac, removed_directives=removed_lines.most_common(30), drop_examples=examples)
+                  min_jac=args.min_jac, pair_ham=args.pair_ham, pair_jac=args.pair_jac, removed_directives=removed_lines.most_common(30), drop_examples=examples)
     json.dump(report, open(os.path.join(args.out, "dedup_report.json"), "w"), indent=1)
     print(json.dumps({k: v for k, v in report.items() if k not in ("drop_examples", "removed_directives")}, indent=1))
 

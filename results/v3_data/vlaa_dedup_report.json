@@ -1,0 +1,389 @@
+{
+ "n_subset": 9499,
+ "n_kept": 8850,
+ "n_dev": 200,
+ "kept_by_source": {
+  "geoqa170k": 5852,
+  "clevr_math": 2000,
+  "arxivqa": 998
+ },
+ "dev_by_source": {
+  "geoqa170k": 137,
+  "clevr_math": 40,
+  "arxivqa": 23
+ },
+ "dropped": {
+  "text/geoqa170k": 281,
+  "image/geoqa170k": 181,
+  "paraphrase/geoqa170k": 185,
+  "image/arxivqa": 2
+ },
+ "max_ham": 6,
+ "min_jac": 0.6,
+ "pair_ham": 12,
+ "pair_jac": 0.35,
+ "removed_directives": [
+  [
+   "Respond using only the letter corresponding to the correct a",
+   788
+  ],
+  [
+   "Please directly answer the question and provide the correct ",
+   785
+  ],
+  [
+   "Provide your answer solely as the option letter, without any",
+   780
+  ],
+  [
+   "Answer with the option's letter from the given choices direc",
+   777
+  ],
+  [
+   "Return just the letter that identifies the correct answer.",
+   760
+  ],
+  [
+   "Your answer should consist solely of the letter of the chose",
+   741
+  ],
+  [
+   "Select and output the letter representing the correct answer",
+   725
+  ],
+  [
+   "Directly state the correct option's letter (for example, A, ",
+   724
+  ],
+  [
+   "Simply indicate the correct answer by typing the letter from",
+   712
+  ],
+  [
+   "Output only the correct option's letter (such as A, B, C, or",
+   707
+  ],
+  [
+   "Respond with maximum brevity.",
+   146
+  ],
+  [
+   "Provide the shortest answer possible.",
+   145
+  ],
+  [
+   "Respond using minimal words.",
+   145
+  ],
+  [
+   "Answer directly without explanation.",
+   139
+  ],
+  [
+   "Be direct and concise.",
+   139
+  ],
+  [
+   "Keep your response to one phrase.",
+   127
+  ],
+  [
+   "Answer without elaboration.",
+   124
+  ],
+  [
+   "Keep it short and to the point.",
+   123
+  ],
+  [
+   "Answer in as few words as possible.",
+   120
+  ],
+  [
+   "Answer precisely and briefly.",
+   116
+  ],
+  [
+   "Be succinct in your answer.",
+   116
+  ],
+  [
+   "Provide just the essential information.",
+   115
+  ],
+  [
+   "Give your answer in one line.",
+   114
+  ],
+  [
+   "Answer with one word or a short phrase.",
+   111
+  ],
+  [
+   "Answer the question using a single word or phrase.",
+   110
+  ],
+  [
+   "Give a brief response only.",
+   110
+  ],
+  [
+   "In the given setup, with the light source P located directly",
+   1
+  ],
+  [
+   "Two points A and B are located at both ends of a pond. Xiao ",
+   1
+  ],
+  [
+   "The aircraft detects the target C on the ground directly bel",
+   1
+  ],
+  [
+   "A tunnel needs to be opened in a certain place, and the leng",
+   1
+  ]
+ ],
+ "drop_examples": [
+  {
+   "id": "geoqa170k-geo3k-train-839-img_diagram-115228",
+   "reason": "text",
+   "ham": 12,
+   "jac": 0.62,
+   "pair_jac": 0.16,
+   "question": "Find J K.\nChoices:\nA: 7\nB: 11\nC: 12\nD: 14"
+  },
+  {
+   "id": "geoqa170k-geo3k-train-1424-img_diagram-115144",
+   "reason": "image",
+   "ham": 0,
+   "jac": 0.86,
+   "pair_jac": 0.86,
+   "question": "In the figure, m \\angle 1 = 123. Find the measure of \\angle 6.\nChoices:\nA: 47\nB: 57\nC: 67\nD: 123"
+  },
+  {
+   "id": "geoqa170k-geoqa_plus-879-111953",
+   "reason": "paraphrase",
+   "ham": 10,
+   "jac": 0.5,
+   "pair_jac": 0.5,
+   "question": "In the provided diagram, let's represent the unknown variable as 'u' and the length of one side of the triangle ruler as 'a' (a = 5.0). If the length of the corresponding edge of the projection triang"
+  },
+  {
+   "id": "geoqa170k-geoqa_plus-1448-99341",
+   "reason": "image",
+   "ham": 5,
+   "jac": 0.51,
+   "pair_jac": 0.51,
+   "question": "The similarity figure is composed of a triangle ruler and its center projection under the light. The similarity ratio is 8.0:20.0, and the length of one edge of the triangle ruler is 32.0, then the co"
+  },
+  {
+   "id": "geoqa170k-geoqa_plus-10769-6841",
+   "reason": "text",
+   "ham": 15,
+   "jac": 0.61,
+   "pair_jac": 0.0,
+   "question": "If AB is parallel to CD and BC is parallel to DE in the given figure, and angle CDE is 140\u00b0, what is the size of angle B?\nChoices:\nA: 40\u00b0\nB: 60\u00b0\nC: 140\u00b0\nD: 160\u00b0"
+  },
+  {
+   "id": "geoqa170k-geoqa_plus-209-26853",
+   "reason": "paraphrase",
+   "ham": 10,
+   "jac": 0.47,
+   "pair_jac": 0.47,
+   "question": "In the given diagram, line AB is parallel to line CD, and line EF intersects AB and CD at points E and F respectively. The bisector of angle BEF intersects at point N. If angle 1 measures 63.0 degrees"
+  },
+  {
+   "id": "geoqa170k-geo3k-train-1655-img_diagram-116094",
+   "reason": "text",
+   "ham": 10,
+   "jac": 0.67,
+   "pair_jac": 0.12,
+   "question": "Find y.\nChoices:\nA: 4\\sqrt{3}\nB: 8\nC: 8\\sqrt{3}\nD: 16"
+  },
+  {
+   "id": "geoqa170k-geoqa_plus-2279-27459",
+   "reason": "image",
+   "ham": 2,
+   "jac": 0.25,
+   "pair_jac": 0.22,
+   "question": "As depicted in the figure, we have a right triangle ABC, with the hypotenuse AB measuring 13.0 units and the length of leg AC measuring 5.0 units. By revolving the line segment BC around its axis, wha"
+  },
+  {
+   "id": "geoqa170k-geo3k-train-1019-img_diagram-116025",
+   "reason": "paraphrase",
+   "ham": 9,
+   "jac": 0.47,
+   "pair_jac": 0.41,
+   "question": "Find the perimeter of the given triangle. \\triangle A B C, if \\triangle A B C \\sim \\triangle C B D, C D = 4, D B = 3, and C B = 5.\nChoices:\nA: 15\nB: 16\nC: 18\nD: 20"
+  },
+  {
+   "id": "geoqa170k-geo3k-train-2-img_diagram-116708",
+   "reason": "image",
+   "ham": 0,
+   "jac": 0.55,
+   "pair_jac": 0.55,
+   "question": "Let J K be the median of A B T Q. Find J K.\nChoices:\nA: 43\nB: 54\nC: 78\nD: 86"
+  },
+  {
+   "id": "geoqa170k-geoqa_plus-3748-32732",
+   "reason": "text",
+   "ham": 17,
+   "jac": 0.65,
+   "pair_jac": 0.0,
+   "question": "According to the figure, triangle ABC is inscribed in circle O, and angle ABC is 70.0 degrees. What is the degree measurement of angle AOC?\nChoices:\nA: 140\u00b0\nB: 120\u00b0\nC: 90\u00b0\nD: 35\u00b0"
+  },
+  {
+   "id": "geoqa170k-geoqa_plus-11649-14425",
+   "reason": "paraphrase",
+   "ham": 11,
+   "jac": 0.45,
+   "pair_jac": 0.38,
+   "question": "In the diagram featuring triangle ABC, DE is parallel to BC. If AD is 4 and DB is 2, what is the relative value of DE to BC?\nChoices:\nA: \\frac{2}{3}\nB: 0.5\nC: \\frac{3}{4}\nD: \\frac{3}{5}"
+  },
+  {
+   "id": "geoqa170k-geoqa_plus-9861-48437",
+   "reason": "text",
+   "ham": 13,
+   "jac": 0.61,
+   "pair_jac": 0.0,
+   "question": "As shown in the figure, circle O is the circumscribe of triangle ABC, given that angle A = 30.0, BC = 2.0, then the radius of circle O is ()\nChoices:\nA: 1\nB: 2\nC: \u221a{3}\nD: 4"
+  },
+  {
+   "id": "geoqa170k-geo3k-train-151-img_diagram-115805",
+   "reason": "image",
+   "ham": 0,
+   "jac": 0.73,
+   "pair_jac": 0.33,
+   "question": "Find y.\nChoices:\nA: 1\nB: 2\nC: 3\nD: 4"
+  },
+  {
+   "id": "geoqa170k-geoqa_plus-1540-24504",
+   "reason": "image",
+   "ham": 1,
+   "jac": 0.32,
+   "pair_jac": 0.14,
+   "question": "If angle 1 is measured at 48.0 degrees and a right triangle plate with a measure of 30.0 is positioned with its vertex on one side of the ruler, what is the measure of angle 2 in the provided figure?\n"
+  },
+  {
+   "id": "geoqa170k-geoqa_plus-2568-83320",
+   "reason": "paraphrase",
+   "ham": 8,
+   "jac": 0.45,
+   "pair_jac": 0.45,
+   "question": "In the given figure, in right triangle ABC, if angle C is represented by the variable 'x' (x = 90.0), AB is represented by the variable 'y' (y = 5.0), and BC is represented by the variable 'z' (z = 4."
+  },
+  {
+   "id": "geoqa170k-geoqa_plus-2062-82737",
+   "reason": "paraphrase",
+   "ham": 11,
+   "jac": 0.39,
+   "pair_jac": 0.39,
+   "question": "In a cone, if the radius of the bottom surface is represented by the variable 'r' (r = 5.0) and the length of the generatrix is represented by the variable 'l' (l = 8.0), what is the expression for th"
+  },
+  {
+   "id": "geoqa170k-geo3k-train-962-img_diagram-115448",
+   "reason": "text",
+   "ham": 13,
+   "jac": 0.73,
+   "pair_jac": 0.0,
+   "question": "Find x so that the quadrilateral is a parallelogram.\nChoices:\nA: 3\nB: 5\nC: 7\nD: 8"
+  },
+  {
+   "id": "geoqa170k-geoqa_plus-2638-28847",
+   "reason": "image",
+   "ham": 5,
+   "jac": 0.45,
+   "pair_jac": 0.45,
+   "question": "What is the tanA in right triangle ABC if angle B is 90.0 degrees and cosA is 12.0/13.0, as shown in the figure? \nChoices:\nA: \\frac{12}{5}\nB: \\frac{13}{12}\nC: \\frac{12}{13}\nD: \\frac{5}{12}"
+  },
+  {
+   "id": "geoqa170k-geo3k-train-169-img_diagram-116224",
+   "reason": "text",
+   "ham": 8,
+   "jac": 0.62,
+   "pair_jac": 0.17,
+   "question": "Find h in the triangle.\nChoices:\nA: \\frac{15\\sqrt2}{3}\nB: \\frac{15}{2}\nC: \\frac{15\\sqrt2}{2}\nD: 15"
+  },
+  {
+   "id": "geoqa170k-geoqa_plus-1913-26224",
+   "reason": "text",
+   "ham": 13,
+   "jac": 0.76,
+   "pair_jac": 0.0,
+   "question": "As shown in the figure, points A, B, and C are three points on circle O, if angle BOC = 50.0, then the degree of angle A is ()\nChoices:\nA: 25\u00b0\nB: 20\u00b0\nC: 80\u00b0\nD: 100\u00b0"
+  },
+  {
+   "id": "geoqa170k-geo3k-train-1389-img_diagram-116907",
+   "reason": "text",
+   "ham": 15,
+   "jac": 0.64,
+   "pair_jac": 0.0,
+   "question": "Find x.\nChoices:\nA: 60\nB: 120\nC: 180\nD: 240"
+  },
+  {
+   "id": "geoqa170k-geoqa_plus-1798-25743",
+   "reason": "image",
+   "ham": 5,
+   "jac": 0.37,
+   "pair_jac": 0.34,
+   "question": "In the figure depicted, where line segment AB functions as the diameter of circle O and chord CD is perpendicular to AB, if angle CAB is set at 30.0 degrees and OD is measured at 2.0 units, how long i"
+  },
+  {
+   "id": "geoqa170k-geoqa_plus-1726-25368",
+   "reason": "paraphrase",
+   "ham": 8,
+   "jac": 0.38,
+   "pair_jac": 0.36,
+   "question": "In the provided figure, with AB serving as the diameter of circle O, and C being a point on circle O (excluding points A and B), if angle BOD is measured at 44.0 degrees, what is the degree measure of"
+  },
+  {
+   "id": "geoqa170k-geoqa_plus-9838-90448",
+   "reason": "paraphrase",
+   "ham": 11,
+   "jac": 0.5,
+   "pair_jac": 0.38,
+   "question": "In the given diagram, triangle ABC is inscribed in circle O, and the measure of angle OBC is given as 40.0 degrees. What is the degree measure of angle A?\nChoices:\nA: 80\u00b0\nB: 100\u00b0\nC: 110\u00b0\nD: 130\u00b0"
+  },
+  {
+   "id": "geoqa170k-geoqa_plus-2776-50604",
+   "reason": "paraphrase",
+   "ham": 9,
+   "jac": 0.44,
+   "pair_jac": 0.41,
+   "question": "In the given diagram, if angle C measures 90.0 degrees, BC has a length of 1.0, and AC has a length of 2.0, what is the value of the tangent of angle A? Represent the tangent of angle A as 'x'.\nChoice"
+  },
+  {
+   "id": "geoqa170k-geoqa_plus-3212-30699",
+   "reason": "text",
+   "ham": 18,
+   "jac": 0.67,
+   "pair_jac": 0.0,
+   "question": "As shown in the figure, triangle ABC is the inscribed triangle of circle O, if angle ABC = 70.0, then the size of angle AOC is ()\nChoices:\nA: 20\u00b0\nB: 35\u00b0\nC: 130\u00b0\nD: 140\u00b0"
+  },
+  {
+   "id": "geoqa170k-geoqa_plus-2365-63013",
+   "reason": "image",
+   "ham": 2,
+   "jac": 0.45,
+   "pair_jac": 0.45,
+   "question": "In the context of circle O with chord BC and radius OA intersecting at point D, while extending to connect AB and OC, express the measure of angle A in relation to the measure of angle C denoted by 'm"
+  },
+  {
+   "id": "geoqa170k-geoqa_plus-4531-108663",
+   "reason": "paraphrase",
+   "ham": 10,
+   "jac": 0.5,
+   "pair_jac": 0.4,
+   "question": "As shown in the figure, in \u25b3ABC, DE \u2225 BC, \\frac{AD}{AB} = \\frac{u}{2.0}, AE = 2.0, then the length of AC is 4.0\n What is the value of the unknown variable u?\nChoices:\nA: 1.0\nB: 5.0\nC: 14.0\nD: 1.0"
+  },
+  {
+   "id": "geoqa170k-geo3k-train-1739-img_diagram-116474",
+   "reason": "image",
+   "ham": 0,
+   "jac": 0.86,
+   "pair_jac": 0.86,
+   "question": "In the figure, m \\angle 1 = 123. Find the measure of \\angle 4.\nChoices:\nA: 47\nB: 57\nC: 67\nD: 123"
+  }
+ ]
+}
