@@ -96,6 +96,41 @@ Exploratory (questions posed after the run). Page: `docs/experiments/obs1_fronti
 - Consequence for the main line: the k = 2–4 target zone was defined by Jaccard; MathVerse accuracy must set the
   anchors (claim C 5 in `docs/claims.qmd`).
 
+## Backup line E1 — reading: why commit order / time schedule has no headroom in Lafa (2026-10-31)
+
+Reading of `results/lafa_e1/headroom_summary.json` (Lafa-7B, block 4, one-jump distilled draft, self-speculative
+decoding, GSM8K + MATH-500, single seed; diagnostics). Scope: these statements hold for this setting only.
+
+- **The answer key is fixed by AR.** Self-speculative output is AR greedy, so the draft only moves speed, and speed
+  is the accepted prefix per round. At block 4 the ceiling is 4 tokens per forward; the decoder already reaches 3.05
+  (site estimate 3.37–3.40), so a perfect draft gains at most +19% (site estimate) to +31% (measured TPF).
+- **Easy tokens are already right.** 72–90% of slots are final after the first jump; draft agreement is 85% where
+  AR's top-1 ≥ 0.9 and 93–94% on numbers. No order or step count changes these.
+- **Misses are genuinely ambiguous tokens.** The 18% of tokens with AR top-1 < 0.9 hold 62–64% of the first misses;
+  draft agreement is 33% at AR top-1 < 0.5, and function words (several valid phrasings) agree only 58–60%. The
+  prefix gives no deciding cue, so no order can surface one.
+- **Sequential conditioning is already done by the verifier.** The fused verify-and-draft forward checks left to right
+  and drafts the next block for every acceptable prefix in the same forward. Making the flow itself sequential (more
+  jumps, staggered times) pays extra forwards to repeat that.
+- **Stop-at-first-miss caps the rest.** The first miss is set by content (the ambiguous token), not by order; drafts
+  that were right after it add only +0.11 tokens per block.
+- **More jumps and imposed orders are worse** (warp4 −0.49, l2r −0.88 accepted tokens vs the one-jump draft on GSM8K):
+  the released model is distilled to jump 0 → 1 in one step with an almost synchronous schedule, so intermediate and
+  staggered states are off its training distribution; and the soft update `p @ E` at an ambiguous slot blends the
+  candidates instead of pointing at AR's pick. The imposed-order losses therefore mix order with distribution shift.
+- **The measured determination order is a consequence, not a lever.** Left slots settle first (66–67%) because they
+  are next to the known prefix; numbers settle early because the arithmetic fixes them, function words late because
+  they are free. Forcing another order runs against that information flow; the left-to-right order is what
+  verification already does.
+- **Contrast with masked diffusion:** there a commit is irreversible and conditions every later token, so order is a
+  real decision; in Lafa every slot stays soft until one final argmax and AR has the last word.
+- **Where Lafa's remaining headroom sits (inference, not tested):** in self-speculative mode quality equals the AR
+  head's greedy output, so quality moves only with the model (training), not with decoding. Speed is per-forward
+  cost / TPF; the AR verification is fused into the same forward and is not the bottleneck. TPF headroom needs a
+  larger block (ceiling; the paper's block 16 reaches 4.9 of 16, weights not released) and, inside a block, a looser
+  acceptance rule at AR-uncertain tokens: accepting the draft wherever AR top-1 < 0.9 raises the site estimate from
+  3.40 / 3.36 to 3.69 / 3.68 (+8.5% / +9.4%, GSM8K / MATH-500), at an untested quality cost (output no longer AR greedy).
+
 ## Next steps
 
 ### Plan v3 (2026-10-30)
