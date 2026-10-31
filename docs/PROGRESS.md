@@ -34,6 +34,7 @@ Authoritative run log, decisions and lever maps. Plan: `plans/research_plan_v3.m
 | 2026-10-30 | **Main line changed to commit (unmasking) policies, plan v3.** Cache refresh becomes a concluded sub-direction: with block = gen_length the 7.3 s per-item floor caps any refresh saving at ~12% (< G3's 40%), and Exp 4 shows staleness flips answers symmetrically (lost ≈ gained), which points at commit decisions, not cache age. Base model stays frozen; a small commit policy may be trained from phase D on (`CLAUDE.md`, `.claude/global.md`, `.claude/research.md` updated) |
 | 2026-10-31 | **Backup main line: commit policies on Lafa** (plan v3, "备用主线"). Lafa commits a left prefix (1–4 tokens) of each 4-token block after K Euler steps, so the decision is prefix length and step count, not order. Trigger and gate L1 thresholds still to be confirmed by the user |
 | 2026-10-31 | **Gates A–E and L1 frozen as suggested**; gate B's main condition is order@K vs token sampling. **Evaluation set stays at the 300 problems** of Exp 4, so gate D was re-derived from a power calculation: one pre-designated policy, ≥ +5 points vs confidence with CI excluding 0 (`.claude/research.md`). SAS-style reward: answer pending, analysis given to the user |
+| 2026-10-31 | **Rewards: answer reward and likelihood reward are used together, not either-or; explore first, then bad cases** (user). New phase B2 (plan v3) before phase D: candidate signals S1–S8 on a training-side dev split, within-problem discrimination, mismatch quadrants, bad-case classes; the phase-D reward follows from it. SAS-style baseline keeps its own likelihood reward, reference = LLaDA-V's own correct generation |
 | 2026-10-29 | **No analysis-paper fallback for now**: if G2 or G3 fails, the response is bad-case analysis aimed at an improvement and a positive result, not a pivot to the "error is uniform" paper. Thresholds unchanged |
 
 ## Findings so far (setup)
@@ -139,6 +140,22 @@ identical numbers). Gate A(i): `src/scripts/ga_identity.py` + `slurm/v3_phaseA_i
 Campaign: `configs/campaigns/mathverse_vd_v3a_block_baselines.json`, 15 arms (confidence / left-to-right /
 random at steps 256/128/64/32, threshold 0.5/0.7/0.9); estimate ~5 s per arm-problem (no block measurement yet)
 → ~6–8 GPU-h for 300, as a 6-task array. Order: A(i) first, then the campaign.
+
+**Phase B2 lever map (written before any B2 run, 2026-10-31).** Within-problem AUROC = probability that a signal ranks
+a correct trajectory above a wrong one of the same problem, over problems with mixed outcomes; read on the held-out
+half of the dev split.
+
+| Outcome | Meaning | Next main-line action |
+|---|---|---|
+| 1. A process signal (S2 / S3 / S6) reaches AUROC ≥ 0.70 and adds ≥ 0.05 over S8 (answer-span confidence) | The model's own path carries selectable information beyond its final answer confidence | D2 reward = correctness + λ · that signal; λ tuned on the dev split |
+| 2. S2 / S3 high on wrong trajectories concentrates in one bad-case class (e.g. misread image values) | Likelihood rewards confident errors of that type | Pair it with a signal that targets the class (S7 for image misreads); check the class on phase-C labels |
+| 3. S7 (image grounding) separates where S2 / S3 do not | A multimodal-specific signal the text methods lack | S7 enters the D2 reward; strengthens claim 2 of the plan (image-dependent tokens) |
+| 4. No signal above 0.60 | Process signals do not tell good from bad paths here | D2 with correctness only, more rollouts; SAS-style baseline expected weak |
+| 5. Answer-format / extraction failures or 256-token repetition dominate the wrong trajectories | The reward would learn formatting, not order | Fix prompt / scorer / length first, then rerun B2 |
+
+Code for B2 so far: `src/methods/commit/signals.Recorder` (S2, S4, S5, S8 from the loop's logits, no extra forward;
+campaign arms with `"record": true`). Still to write: post-hoc scorer for S3 / S6 / S7, the training-side dev split
+(blocked on the training-set choice), the analysis script.
 
 Phase A (block baselines), no new model code beyond a commit-policy interface:
 

@@ -29,11 +29,12 @@ def attach(model):
 @torch.no_grad()
 def generate(hook, inputs_embeds, policy, steps=128, gen_length=128, block_length=128, threshold=None,
              mask_id=126336, tokenizer=None, stopping_criteria=None, probe=None, commit=None, temperature=0.0,
-             seed=0):
+             seed=0, recorder=None):
     """Returns (generated token ids [1, L], trace) where trace[k] = (t, block, i, refreshed, n_transferred).
 
     `probe(t, cache, x_embeds, mask_index, block_start, block_end, n_tok)`, if given, is called after every
     refresh forward with the fresh prompt cache; it must not modify its arguments (src/scripts/probe_replacement.py).
+    `recorder` (src/methods/commit/signals.Recorder), if given, observes every step's block logits; read-only.
     """
     lm = hook.model
     embed = lm.model.embed_tokens
@@ -108,6 +109,10 @@ def generate(hook, inputs_embeds, policy, steps=128, gen_length=128, block_lengt
                     x0, transfer_index = select(
                         commit, logits, mask_index[:, off:], x[:, off:], n_tok, found_stop_seq,
                         stop_position - off, block_end - off, threshold, temperature, gen, off - n_prompt)
+                if recorder is not None:
+                    b0, b1 = block_start - off, block_end - off
+                    recorder.observe(t, block_start - n_prompt, logits[0, b0:b1], mask_index[0, block_start:block_end],
+                                     transfer_index[0, b0:b1], x0[0, b0:b1])
                 x0_embeds = embed(x0)
                 x0_embeds = torch.where(mask_index[:, off:].unsqueeze(-1).expand_as(x_embeds[:, off:]),
                                         x0_embeds, x_embeds[:, off:])

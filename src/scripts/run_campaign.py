@@ -3,7 +3,8 @@
 Arm policies: "full" = upstream generate without cache (the reference); "interval" = unified loop with
 FixedInterval(k); "commit" (plan v3) = unified loop with a commit policy from the arm's "commit" entry
 (src/methods/commit/policies.build), KV prefix cache refreshed only at block starts unless the arm sets "k".
-A commit arm may override the task's "steps" (the NFE budget) and set "temperature" / "seed" (token sampling). All arms of a sample run back to back (samples outer, arms inner), so slow drift of the GPU
+A commit arm may override the task's "steps" (the NFE budget) and set "temperature" / "seed" (token sampling);
+with "record": true it also stores the per-position signals of src/methods/commit/signals.Recorder. All arms of a sample run back to back (samples outer, arms inner), so slow drift of the GPU
 hits every arm alike. Timing: one discarded warm-up per arm on the first sample, CUDA-synchronized clocks,
 generation time excludes model load and image preprocessing.
 
@@ -25,6 +26,7 @@ import torch
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from src.methods.refresh import llada_v, loop  # noqa: E402
 from src.methods.commit import policies as commit_policies  # noqa: E402
+from src.methods.commit.signals import Recorder  # noqa: E402
 from src.methods.refresh.policies import FixedInterval  # noqa: E402
 
 BLOCK_START_ONLY = 10 ** 9  # FixedInterval(k) with k > steps per block: refresh at block starts only
@@ -68,6 +70,7 @@ def main():
         else:
             hook.register_hooks()
         n_forward.clear()
+        recorder = Recorder(gen["gen_length"]) if arm.get("record") else None
         torch.cuda.synchronize()
         t0 = time.perf_counter()
         if arm["policy"] == "full":
@@ -77,7 +80,8 @@ def main():
             tokens, trace = loop.generate(hook, embeds, FixedInterval(arm.get("k", BLOCK_START_ONLY)),
                                           threshold=arm.get("threshold"), tokenizer=tokenizer,
                                           commit=commit_policies.build(arm["commit"]),
-                                          temperature=arm.get("temperature", 0.0), seed=arm.get("seed", 0), **g)
+                                          temperature=arm.get("temperature", 0.0), seed=arm.get("seed", 0),
+                                          recorder=recorder, **g)
         else:
             tokens, trace = loop.generate(hook, embeds, FixedInterval(arm["k"]), threshold=arm["threshold"],
                                           tokenizer=tokenizer, **gen)
@@ -85,7 +89,8 @@ def main():
         gen_s = time.perf_counter() - t0
         full_len = embeds.shape[1] + gen["gen_length"]
         refreshes = sum(l == full_len for l in n_forward)
-        return dict(gen_s=gen_s, n_prompt=embeds.shape[1], forwards=len(n_forward), refreshes=refreshes,
+        signals = None if recorder is None else recorder.to_json(tokens.shape[1])
+        return dict(gen_s=gen_s, n_prompt=embeds.shape[1], signals=signals, forwards=len(n_forward), refreshes=refreshes,
                     r=refreshes / len(n_forward), tokens=tokens[0].tolist(),
                     text=tokenizer.decode(tokens[0], skip_special_tokens=True),
                     trace=None if trace is None else [[t, b, i, int(f), n] for t, b, i, f, n in trace])

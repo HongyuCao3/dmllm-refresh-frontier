@@ -79,3 +79,21 @@ def test_temperature_sampling_seeded_and_differs():
     c = select(Confidence(), logits, mask, x, n_tok, False, stop, bend, None, 0.0)
     assert torch.equal(a[0], b[0])
     assert not torch.equal(a[0], c[0])
+
+
+def test_recorder_tracks_flips_and_commits():
+    from src.methods.commit.signals import Recorder
+    rec = Recorder(8)
+    V = 5
+    big = lambda tok: torch.nn.functional.one_hot(torch.tensor(tok), V).float() * 5
+    masked = torch.ones(4, dtype=torch.bool)
+    # step 0: argmax [1,1,1,1], commit position 0
+    rec.observe(0, 4, big([1, 1, 1, 1]), masked, torch.tensor([True, False, False, False]), torch.tensor([1, 1, 1, 1]))
+    masked = torch.tensor([False, True, True, True])
+    # step 1: position 1 flips to 2 and is committed; position 0 is no longer masked (no flip counted)
+    rec.observe(1, 4, big([3, 2, 1, 1]), masked, torch.tensor([False, True, False, False]), torch.tensor([1, 2, 1, 1]))
+    j = rec.to_json(8)
+    assert j["first_argmax"][4:] == [1, 1, 1, 1] and j["first_argmax"][:4] == [-1] * 4
+    assert j["flips"][4:] == [0, 1, 0, 0]
+    assert j["commit_step"][4:6] == [0, 1] and j["commit_step"][6] == -1
+    assert j["commit_logp"][4] > -0.1 and j["commit_margin"][5] > 4
