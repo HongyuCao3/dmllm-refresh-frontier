@@ -10,7 +10,8 @@ when the gold has it) must appear, in order,
 as the last numbers of the answer segment, within half a unit of the gold's last decimal place (at least 1e-3
 relative). A gold answer without any number is unscorable and counts as wrong for every arm alike.
 
-Reports accuracy per arm, and per arm vs full: paired Δ [95% CI] (bootstrap over problems, 10,000 resamples,
+Reports accuracy per arm, and per arm vs the reference arm (`--ref`, default "full"; plan v3 phase A uses
+"conf_s256"): paired Δ [95% CI] (bootstrap over problems, 10,000 resamples,
 seed 0) and an exact McNemar p-value. Reads all generations*.jsonl shards of the campaign.
 """
 import argparse
@@ -89,6 +90,7 @@ def main():
     ap.add_argument("--manifest", default=f"/scratch/{ACCT}/data/dmllm_refresh/mathverse_vision_dominant/manifest.jsonl")
     ap.add_argument("--out", default=None)
     ap.add_argument("--dump", default=None)
+    ap.add_argument("--ref", default="full", help="reference arm for the paired comparisons")
     ap.add_argument("--gen-length", type=int, default=256, help="campaign gen_length; outputs that hit the cap "
                     "have gen_length - 1 tokens (Exp 3: 127 of 128)")
     args = ap.parse_args()
@@ -100,9 +102,13 @@ def main():
         for r in map(json.loads, open(f)):
             by[r["arm"]][r["sample_id"]] = r
     ids = sorted(set.intersection(*(set(v) for v in by.values())))
-    arms = ["full"] + sorted((a for a in by if a != "full"), key=lambda a: int(a.removeprefix("interval")))
+    ref = args.ref
+    rest = [a for a in by if a != ref]
+    if all(a.startswith("interval") for a in rest):
+        rest.sort(key=lambda a: int(a.removeprefix("interval")))
+    arms = [ref] + rest  # other campaigns keep the config's arm order (dict insertion order of the shards)
     ok = {a: np.array([correct(meta[i], by[a][i]["text"]) for i in ids]) for a in arms}
-    full_s = np.array([by["full"][i]["gen_s"] for i in ids])
+    full_s = np.array([by[ref][i]["gen_s"] for i in ids])
     rng = np.random.default_rng(0)
     boot = rng.integers(0, len(ids), (10_000, len(ids)))
 
@@ -114,18 +120,19 @@ def main():
                    r_mean=round(float(np.mean([by[a][i]["r"] for i in ids])), 4),
                    out_tokens_mean=round(float(np.mean([len(by[a][i]["tokens"]) for i in ids])), 1),
                    hit_length_cap=int(sum(len(by[a][i]["tokens"]) >= args.gen_length - 1 for i in ids)))
-        if a != "full":
-            d = ok[a].astype(float) - ok["full"].astype(float)
+        rec.update(forwards_mean=round(float(np.mean([by[a][i]["forwards"] for i in ids])), 1))
+        if a != ref:
+            d = ok[a].astype(float) - ok[ref].astype(float)
             ci = np.percentile(d[boot].mean(1), [2.5, 97.5])
-            b, c = int(((~ok[a]) & ok["full"]).sum()), int((ok[a] & ~ok["full"]).sum())
-            rec.update(delta_vs_full=round(float(d.mean()), 4), delta_ci95=[round(float(v), 4) for v in ci],
+            b, c = int(((~ok[a]) & ok[ref]).sum()), int((ok[a] & ~ok[ref]).sum())
+            rec.update(reference=ref, delta_vs_ref=round(float(d.mean()), 4), delta_ci95=[round(float(v), 4) for v in ci],
                        lost=b, gained=c, mcnemar_p=round(binomtest(c, b + c).pvalue, 4) if b + c else 1.0)
         rows[a] = rec
 
     by_type = {a: {t: round(float(np.mean([ok[a][j] for j, i in enumerate(ids) if meta[i]["question_type"] == t])), 4)
                    for t in ("multi-choice", "free-form")} for a in arms}
-    summary = dict(campaign=args.campaign, n=len(ids), gpu=by["full"][ids[0]]["gpu"],
-                   n_prompt_mean=round(float(np.mean([by["full"][i]["n_prompt"] for i in ids])), 1),
+    summary = dict(campaign=args.campaign, n=len(ids), gpu=by[ref][ids[0]]["gpu"],
+                   n_prompt_mean=round(float(np.mean([by[ref][i]["n_prompt"] for i in ids])), 1),
                    unscorable_free_form=sum(1 for i in ids if meta[i]["question_type"] == "free-form"
                                             and not numbers(meta[i]["answer"])),
                    arms=rows, accuracy_by_type=by_type)

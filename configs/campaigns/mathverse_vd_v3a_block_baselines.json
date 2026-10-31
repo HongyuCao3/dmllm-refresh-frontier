@@ -1,0 +1,33 @@
+{
+  "name": "mathverse_vd_v3a_block_baselines",
+  "purpose": "Plan v3 phase A: prior commit baselines in block decoding (block 32, gen 256, prefix cache refreshed at block starts) on MathVerse testmini vision-dominant (300, seed 0). Fixed schedules at steps 256/128/64/32 (1/2/4/8 tokens per step: D-order, equal NFE across policies) for confidence (LLaDA), left-to-right and random order; Fast-dLLM threshold rule at 0.5/0.7/0.9 (D-count). Visual re-ranking baseline added once chosen.",
+  "task": {
+    "manifest": "/scratch/{acct}/data/dmllm_refresh/mathverse_vision_dominant/manifest.jsonl",
+    "n": 300,
+    "gen": {
+      "steps": 256,
+      "gen_length": 256,
+      "block_length": 32,
+      "stopping_criteria": [
+        "<|eot_id|>"
+      ]
+    }
+  },
+  "arms": [
+    {"name": "conf_s256", "policy": "commit", "commit": {"policy": "confidence"}, "steps": 256},
+    {"name": "conf_s128", "policy": "commit", "commit": {"policy": "confidence"}, "steps": 128},
+    {"name": "conf_s64", "policy": "commit", "commit": {"policy": "confidence"}, "steps": 64},
+    {"name": "conf_s32", "policy": "commit", "commit": {"policy": "confidence"}, "steps": 32},
+    {"name": "l2r_s256", "policy": "commit", "commit": {"policy": "l2r"}, "steps": 256},
+    {"name": "l2r_s128", "policy": "commit", "commit": {"policy": "l2r"}, "steps": 128},
+    {"name": "l2r_s64", "policy": "commit", "commit": {"policy": "l2r"}, "steps": 64},
+    {"name": "l2r_s32", "policy": "commit", "commit": {"policy": "l2r"}, "steps": 32},
+    {"name": "rand_s256", "policy": "commit", "commit": {"policy": "random", "seed": 0}, "steps": 256},
+    {"name": "rand_s128", "policy": "commit", "commit": {"policy": "random", "seed": 0}, "steps": 128},
+    {"name": "rand_s64", "policy": "commit", "commit": {"policy": "random", "seed": 0}, "steps": 64},
+    {"name": "rand_s32", "policy": "commit", "commit": {"policy": "random", "seed": 0}, "steps": 32},
+    {"name": "conf_thr0.5", "policy": "commit", "commit": {"policy": "confidence"}, "threshold": 0.5},
+    {"name": "conf_thr0.7", "policy": "commit", "commit": {"policy": "confidence"}, "threshold": 0.7},
+    {"name": "conf_thr0.9", "policy": "commit", "commit": {"policy": "confidence"}, "threshold": 0.9}
+  ]
+}

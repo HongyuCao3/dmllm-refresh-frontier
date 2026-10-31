@@ -22,19 +22,25 @@ comparison; **only the commit policy (and, in phase E, the refresh policy) chang
 training data never overlaps the evaluation problems; other MathVerse versions share its problems and are
 excluded.
 
-## Gates of plan v3 (proposed, not frozen)
+## Gates of plan v3 (frozen by the user 2026-10-31)
 
-Thresholds below are proposals. They are frozen by the user before the first run of the phase they gate, and
-not changed afterwards. Until frozen, no gate verdict is reported.
+Frozen on 2026-10-31, before any phase-A data existed ("follow the suggestions"; evaluation set kept at the 300
+problems of Exp 4). Not changed afterwards. Gate D was re-derived for n = 300 from a power calculation (below).
 
-| Gate | After | Proposed pass condition |
+| Gate | After | Pass condition (frozen) |
 |---|---|---|
-| A | Phase A block baselines | Unified loop token-identical to upstream LLaDA-V in block decoding; baseline accuracy–NFE curves (near-)monotone |
+| A | Phase A block baselines | (i) `src/scripts/ga_identity.py` prints `GATE A(i) PASS`: unified loop with `Confidence()` token-identical to upstream LLaDA-V in block decoding; (ii) baseline accuracy–NFE curves (near-)monotone |
 | B | Phase B order upper bound | **Main condition:** at matched NFE and K, order@K significantly above K token-sampling runs with the order fixed (paired bootstrap CI excludes 0). Secondary: Acc(order@K) − Acc(confidence) ≥ 3 points (a free Exp 4 pilot already gives +5.3 from 6 cache perturbations without any order change, so this alone does not discriminate). Multiple-choice and free-form reported separately; a pass on multiple-choice only is read as guessing. self-select@K is reported but does not gate |
 | C | Phase C multimodal diagnosis | Calibration error of image-dependent tokens significantly above that of other tokens (paired bootstrap CI excludes 0), and image dependence still predicts errors after controlling for attention-based visual signals (VISAGE, VRCD) |
-| D | Phase D learned policy | ≥ 1 policy beats the confidence baseline by ≥ 3 points at matched NFE, Holm-significant, reaches ≥ 50% of the phase-B headroom, and is not below SAS-style and 2607.08056-style policies re-implemented on LLaDA-V, nor below best-of-K + self-select on the accuracy–NFE curve. D-order (fixed commit count) and D-count (policy also sets the count; matched mean NFE) are reported separately. Assumes the 788-problem evaluation set; at n = 300 re-derive the threshold from a power calculation before freezing |
+| D | Phase D learned policy | One policy designated before evaluation (picked on the training-side validation split, never on MathVerse) beats the confidence baseline at matched NFE by **≥ +5 points with the paired-bootstrap 95% CI excluding 0** (single primary test, so no Holm); reaches ≥ 50% of the phase-B headroom; and its point estimate is not below the left-to-right, SAS-style, 2607.08056-style and best-of-K + self-select baselines (those comparisons reported with Holm-corrected tests). D-order (fixed commit count) and D-count (matched mean NFE) are reported separately |
 | E | Phase E commit + cache | ≥ 15% lower wall-clock than the strongest training-free joint method (EntropyCache, Polestar) at matched accuracy |
 | L1 | Backup line (Lafa) phase L1 | Oracle prefix length / step stopping within ±1 point of Lafa's default flow setting (K 4, CFG 8, self-cond) at ≥ 30% fewer NFE, and the prior confidence-threshold baseline does not reach this point |
+
+Power behind gate D (2026-10-31, simulation, n = 300, exact McNemar): with 8 / 15 / 25% of problems changed by
+the policy, a true +3-point gain is detected with power 0.37 / 0.22 / 0.14 at α = 0.05 (0.19 / 0.09 / 0.05 under
+Holm over 4 tests); +5 points: 0.86 / 0.56 / 0.39; +7 points: 1.00 / 0.86 / 0.63. Hence one primary test and a
++5-point bar. A policy with a real +3-point gain will usually fail gate D at n = 300; this is the accepted cost of
+keeping 300 problems. The full 788 stay for the final verification phase.
 
 Backup line (plan v3, "备用主线"): commit policies on Lafa (text-only block-causal flow LM, block 4, prefix commit,
 no order choice). Switched to only by the user, on a failed gate B main condition or if phase 0 finds the LLaDA-V gap

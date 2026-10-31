@@ -1,7 +1,9 @@
 """Run one campaign (configs/campaigns/*.json): one task x many refresh-policy arms, one model load.
 
 Arm policies: "full" = upstream generate without cache (the reference); "interval" = unified loop with
-FixedInterval(k). All arms of a sample run back to back (samples outer, arms inner), so slow drift of the GPU
+FixedInterval(k); "commit" (plan v3) = unified loop with a commit policy from the arm's "commit" entry
+(src/methods/commit/policies.build), KV prefix cache refreshed only at block starts unless the arm sets "k".
+A commit arm may override the task's "steps" (the NFE budget) and set "temperature" / "seed" (token sampling). All arms of a sample run back to back (samples outer, arms inner), so slow drift of the GPU
 hits every arm alike. Timing: one discarded warm-up per arm on the first sample, CUDA-synchronized clocks,
 generation time excludes model load and image preprocessing.
 
@@ -22,7 +24,10 @@ import torch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from src.methods.refresh import llada_v, loop  # noqa: E402
+from src.methods.commit import policies as commit_policies  # noqa: E402
 from src.methods.refresh.policies import FixedInterval  # noqa: E402
+
+BLOCK_START_ONLY = 10 ** 9  # FixedInterval(k) with k > steps per block: refresh at block starts only
 
 ACCT = os.popen("id -un").read().strip()
 
@@ -67,6 +72,12 @@ def main():
         t0 = time.perf_counter()
         if arm["policy"] == "full":
             tokens, trace = model.generate_with_embeds(inputs_embeds=embeds, tokenizer=tokenizer, **gen), None
+        elif arm["policy"] == "commit":
+            g = dict(gen, steps=arm.get("steps", gen["steps"]))
+            tokens, trace = loop.generate(hook, embeds, FixedInterval(arm.get("k", BLOCK_START_ONLY)),
+                                          threshold=arm.get("threshold"), tokenizer=tokenizer,
+                                          commit=commit_policies.build(arm["commit"]),
+                                          temperature=arm.get("temperature", 0.0), seed=arm.get("seed", 0), **g)
         else:
             tokens, trace = loop.generate(hook, embeds, FixedInterval(arm["k"]), threshold=arm["threshold"],
                                           tokenizer=tokenizer, **gen)

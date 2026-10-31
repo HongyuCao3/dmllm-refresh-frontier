@@ -6,10 +6,17 @@ A copy of upstream `FastDLLMGenerationHook._fast_generate_with_embeds`
 transfer-count schedule and cache slicing are upstream's own methods, called on a registered hook, so with
 `FixedInterval(k)` the output must be token-identical to upstream at `prefix_refresh_interval=k` (gate G1(i)).
 CFG and generation suffixes are not used by this project and are left out.
+
+Plan v3 adds a second hook: with `commit` (a src/methods/commit policy) the committed positions come from
+`commit.select` instead of upstream's `_get_transfer_index`, and `temperature` > 0 samples tokens with a
+generator seeded by `seed`. With `commit=None` and temperature 0 the upstream path is unchanged; with
+`Confidence()` it must be token-identical to it (gate A, src/scripts/ga_identity.py).
 """
 import torch
 
 from llava.hooks.fast_dllm_hook import register_fast_dllm_hook
+
+from src.methods.commit.policies import Confidence, select
 
 FORBIDDEN_TOKENS = [126081, 126080, 126346, 126347]
 
@@ -21,7 +28,8 @@ def attach(model):
 
 @torch.no_grad()
 def generate(hook, inputs_embeds, policy, steps=128, gen_length=128, block_length=128, threshold=None,
-             mask_id=126336, tokenizer=None, stopping_criteria=None, probe=None):
+             mask_id=126336, tokenizer=None, stopping_criteria=None, probe=None, commit=None, temperature=0.0,
+             seed=0):
     """Returns (generated token ids [1, L], trace) where trace[k] = (t, block, i, refreshed, n_transferred).
 
     `probe(t, cache, x_embeds, mask_index, block_start, block_end, n_tok)`, if given, is called after every
@@ -30,6 +38,14 @@ def generate(hook, inputs_embeds, policy, steps=128, gen_length=128, block_lengt
     lm = hook.model
     embed = lm.model.embed_tokens
     policy.reset()
+    if commit is None and temperature > 0:
+        commit = Confidence()  # token-sampling control: order stays the confidence order
+    if commit is not None:
+        commit.reset()  # the policy's own seed; `seed` drives token sampling only
+    gen = None
+    if temperature > 0:
+        gen = torch.Generator(device=inputs_embeds.device)
+        gen.manual_seed(seed)
     trace = []
     with torch.cuda.amp.autocast(enabled=True):
         n_prompt = inputs_embeds.shape[1]
@@ -84,9 +100,14 @@ def generate(hook, inputs_embeds, policy, steps=128, gen_length=128, block_lengt
                 for token_id in FORBIDDEN_TOKENS:
                     logits[:, :, token_id] = torch.where(mask_index[:, off:], -float("inf"), logits[:, :, token_id])
 
-                x0, transfer_index = hook._get_transfer_index(
-                    logits, 0.0, "low_confidence", mask_index[:, off:], x[:, off:], n_tok,
-                    found_stop_seq, stop_position - off, block_end - off, 0, threshold)
+                if commit is None and temperature == 0:
+                    x0, transfer_index = hook._get_transfer_index(
+                        logits, 0.0, "low_confidence", mask_index[:, off:], x[:, off:], n_tok,
+                        found_stop_seq, stop_position - off, block_end - off, 0, threshold)
+                else:
+                    x0, transfer_index = select(
+                        commit, logits, mask_index[:, off:], x[:, off:], n_tok, found_stop_seq,
+                        stop_position - off, block_end - off, threshold, temperature, gen, off - n_prompt)
                 x0_embeds = embed(x0)
                 x0_embeds = torch.where(mask_index[:, off:].unsqueeze(-1).expand_as(x_embeds[:, off:]),
                                         x0_embeds, x_embeds[:, off:])

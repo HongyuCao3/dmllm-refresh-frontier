@@ -17,7 +17,7 @@ Authoritative run log, decisions and lever maps. Plan: `plans/research_plan_v3.m
 | Docs | Quarto site filled 2026-10-29: Exp 1–3, Obs 1, claims C 1–C 5, task definition, method (loop), dashboard. `cd docs && quarto render` |
 | Phase 2 | Exp 5 done 2026-10-29 (job 18601279): **G2 PASS on captions** (60.8%); MathVerse not probed. Page `docs/experiments/exp5_replacement_error_map.qmd` |
 | Phases 3–5 (v2) | **not run**: sub-direction concluded 2026-10-30 (see Decisions). Elastic-Cache / dKV-Cache ports dropped unless phase E needs them |
-| Plan v3 | **draft 2026-10-30, revised after a literature check the same day; revised again 2026-10-31** (gate B main condition, self-select check, 788-problem proposal, phase-C calibration target, D-order / D-count, training-set dedup, phase-D compute 300–500 GPU-h, backup line on Lafa): `plans/research_plan_v3.md`; gates A–E and L1 proposed in `.claude/research.md`, to be frozen by the user before phase A runs |
+| Plan v3 | **draft 2026-10-30, revised after a literature check the same day; revised again 2026-10-31** (gate B main condition, self-select check, 788-problem proposal, phase-C calibration target, D-order / D-count, training-set dedup, phase-D compute 300–500 GPU-h, backup line on Lafa): `plans/research_plan_v3.md`; gates A–E and L1 proposed in `.claude/research.md`, **frozen 2026-10-31** (gate D re-derived for n = 300) |
 | Plan v3 phase 0 | **done 2026-10-31** (`docs/literature_review.qmd`): both 2607.08056 and SAS are D-order, neither reports NFE or uses LLaDA-V / MathVerse / caches (gaps hold). SAS: base frozen, code public, sequential one-token policy that degrades under parallel top-k, reward needs gold reasoning text. 2607.08056: no code, freezing unstated, single-run gains. Changes: left-to-right baseline added to phase A; SAS-style baseline retrained under our k with a reward choice for the user; 2607.08056-style baseline rebuilt from DCoLT's UPM with the base frozen |
 | Backup line L0 | **done 2026-10-31** (CPU): on GSM8K a training-free min-p ≥ 0.9 step gate already saves 32–66% at ≥ 99.4% token agreement, and accuracy is saturated (0.96): no headroom; only a harder task (MATH-500, GPU) is left open. Details under Next steps |
 
@@ -33,6 +33,7 @@ Authoritative run log, decisions and lever maps. Plan: `plans/research_plan_v3.m
 | 2026-10-29 | **Order of work**: record and analyse all Phase 0–1 results in the docs first; then (1) MathVerse frontier, (2) Phase 2 error map, D3 and D5 first. Elastic-Cache / dKV-Cache ports wait until G2 / G3 |
 | 2026-10-30 | **Main line changed to commit (unmasking) policies, plan v3.** Cache refresh becomes a concluded sub-direction: with block = gen_length the 7.3 s per-item floor caps any refresh saving at ~12% (< G3's 40%), and Exp 4 shows staleness flips answers symmetrically (lost ≈ gained), which points at commit decisions, not cache age. Base model stays frozen; a small commit policy may be trained from phase D on (`CLAUDE.md`, `.claude/global.md`, `.claude/research.md` updated) |
 | 2026-10-31 | **Backup main line: commit policies on Lafa** (plan v3, "备用主线"). Lafa commits a left prefix (1–4 tokens) of each 4-token block after K Euler steps, so the decision is prefix length and step count, not order. Trigger and gate L1 thresholds still to be confirmed by the user |
+| 2026-10-31 | **Gates A–E and L1 frozen as suggested**; gate B's main condition is order@K vs token sampling. **Evaluation set stays at the 300 problems** of Exp 4, so gate D was re-derived from a power calculation: one pre-designated policy, ≥ +5 points vs confidence with CI excluding 0 (`.claude/research.md`). SAS-style reward: answer pending, analysis given to the user |
 | 2026-10-29 | **No analysis-paper fallback for now**: if G2 or G3 fails, the response is bad-case analysis aimed at an improvement and a positive result, not a pivot to the "error is uniform" paper. Thresholds unchanged |
 
 ## Findings so far (setup)
@@ -126,6 +127,18 @@ argmax / min-p, no per-token confidences stored):
 Open decisions for the user before phase A runs: (1) freeze gates A–E (proposals in `.claude/research.md`);
 (2) the policy training set (candidates: Geo170K, MathV360K, GeoQA train; any MathVerse version is excluded,
 it shares the evaluation problems); (3) K and the perturbation for the phase-B order upper bound.
+
+**Phase A code ready (2026-10-31, CPU only, nothing submitted).** `src/methods/commit/policies.py`: `select` (copy of
+upstream `_get_transfer_index` with a policy score and seeded token sampling) and policies `Confidence`,
+`LeftToRight`, `Random`, `PerturbedConfidence` (phase B). `loop.generate(commit=..., temperature=..., seed=...)`;
+`commit=None` keeps the upstream path (G1 unchanged). CPU check `tests/test_commit_select.py`: 171/171 cases pass
+(`Confidence` equals upstream bit for bit under the fixed schedule and the threshold rule; other policies keep the
+count and eligibility); run in the llada-v env, which has no pytest, via a stub runner. `run_campaign.py`: arm
+policy "commit" with per-arm steps / threshold / temperature; `score_mathverse.py --ref` (regression on Exp 4:
+identical numbers). Gate A(i): `src/scripts/ga_identity.py` + `slurm/v3_phaseA_identity.sbatch` (~10 min).
+Campaign: `configs/campaigns/mathverse_vd_v3a_block_baselines.json`, 15 arms (confidence / left-to-right /
+random at steps 256/128/64/32, threshold 0.5/0.7/0.9); estimate ~5 s per arm-problem (no block measurement yet)
+→ ~6–8 GPU-h for 300, as a 6-task array. Order: A(i) first, then the campaign.
 
 Phase A (block baselines), no new model code beyond a commit-policy interface:
 
