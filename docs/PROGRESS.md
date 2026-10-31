@@ -131,6 +131,28 @@ decoding, GSM8K + MATH-500, single seed; diagnostics). Scope: these statements h
   acceptance rule at AR-uncertain tokens: accepting the draft wherever AR top-1 < 0.9 raises the site estimate from
   3.40 / 3.36 to 3.69 / 3.68 (+8.5% / +9.4%, GSM8K / MATH-500), at an untested quality cost (output no longer AR greedy).
 
+## Literature check: improving the AR part of joint AR + flow / diffusion models (2026-10-31)
+
+Question (user): after E1, is Lafa's remaining headroom in the AR part, and are there methods that improve the AR
+head's accuracy in joint AR + flow (or AR + diffusion) models? No work targets the AR head of an AR + flow model.
+
+- **Training side, near neutral when controlled.** Lafa reports its AR head above AR SFT on the same data (7B 60.9 vs
+  58.4, 8B 63.1 vs 56.8; largest on IFEval +5.1 / +24.2 and GSM8K +4.7 / +14.9, code slightly lower), attributed to a
+  multi-token-prediction effect, with no loss-weight ablation, no variance and no stated AR SFT token budget (8B SFT
+  IFEval 38.1 looks undertrained). The one controlled ablation found (Nemotron-Labs-Diffusion 2607.05722, same data and
+  tokens, AR loss vs AR + diffusion loss) moves the AR-mode average by +0.14 (base) / +0.43 (instruct), mixed per
+  benchmark (IFEval −3.0, HumanEval −2.4, AIME25 +6.7). Multi-token prediction (2404.19737) gains mainly at scale, on
+  code, in pretraining. Expected gain from re-weighting the joint objective: about 0–1 point, and it needs retraining.
+- **Inference side.** Lossy acceptance (2610.31819) only moves quality toward the weaker drafter: speed, not accuracy.
+  RecGuide (2609.34388) and draft-alignment LoRA (2607.05722, TPF +14–33%, accuracy unchanged) are speed levers.
+  Accuracy levers: diffusion planner + AR executor (2510.15244, Planned Diffusion 2510.18087) need training; parallel
+  diffusion trajectories + AR selection (CoRAL 2610.28584) is a cheap best-of-K and transfers directly.
+- **Insight.** In these hybrids the AR head is the quality ceiling and the non-AR part buys speed; its training-time
+  regularisation is near neutral when controlled. What the architecture adds is cheap parallel exploration. E1 puts
+  the draft misses at the ~18% AR-uncertain tokens, i.e. branch points. Open, architecture-specific question: does
+  branching at those points (near-free at batch 1) raise accuracy, and is there a selection signal that captures it?
+  Not read in full: TiDAR 2511.08923 and Zarya 2609.19868 (PDF not parsed; abstracts only).
+
 ## Next steps
 
 ### Plan v3 (2026-10-30)
