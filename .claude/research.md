@@ -30,10 +30,16 @@ not changed afterwards. Until frozen, no gate verdict is reported.
 | Gate | After | Proposed pass condition |
 |---|---|---|
 | A | Phase A block baselines | Unified loop token-identical to upstream LLaDA-V in block decoding; baseline accuracy–NFE curves (near-)monotone |
-| B | Phase B order upper bound | At matched NFE, Acc(order@K) − Acc(confidence) ≥ 3 points (text search methods gain 2–8), and order@K significantly above K token-sampling runs with the order fixed |
+| B | Phase B order upper bound | **Main condition:** at matched NFE and K, order@K significantly above K token-sampling runs with the order fixed (paired bootstrap CI excludes 0). Secondary: Acc(order@K) − Acc(confidence) ≥ 3 points (a free Exp 4 pilot already gives +5.3 from 6 cache perturbations without any order change, so this alone does not discriminate). Multiple-choice and free-form reported separately; a pass on multiple-choice only is read as guessing. self-select@K is reported but does not gate |
 | C | Phase C multimodal diagnosis | Calibration error of image-dependent tokens significantly above that of other tokens (paired bootstrap CI excludes 0), and image dependence still predicts errors after controlling for attention-based visual signals (VISAGE, VRCD) |
-| D | Phase D learned policy | ≥ 1 policy beats the confidence baseline by ≥ 3 points at matched NFE, Holm-significant, reaches ≥ 50% of the phase-B headroom, and is not below SAS-style and 2607.08056-style policies re-implemented on LLaDA-V |
+| D | Phase D learned policy | ≥ 1 policy beats the confidence baseline by ≥ 3 points at matched NFE, Holm-significant, reaches ≥ 50% of the phase-B headroom, and is not below SAS-style and 2607.08056-style policies re-implemented on LLaDA-V, nor below best-of-K + self-select on the accuracy–NFE curve. D-order (fixed commit count) and D-count (policy also sets the count; matched mean NFE) are reported separately. Assumes the 788-problem evaluation set; at n = 300 re-derive the threshold from a power calculation before freezing |
 | E | Phase E commit + cache | ≥ 15% lower wall-clock than the strongest training-free joint method (EntropyCache, Polestar) at matched accuracy |
+| L1 | Backup line (Lafa) phase L1 | Oracle prefix length / step stopping within ±1 point of Lafa's default flow setting (K 4, CFG 8, self-cond) at ≥ 30% fewer NFE, and the prior confidence-threshold baseline does not reach this point |
+
+Backup line (plan v3, "备用主线"): commit policies on Lafa (text-only block-causal flow LM, block 4, prefix commit,
+no order choice). Switched to only by the user, on a failed gate B main condition or if phase 0 finds the LLaDA-V gap
+covered by prior work; a failed gate C does not trigger it. Lafa's self-speculative mode is the reference for any
+efficiency claim.
 
 ## Gates of plan v2 (concluded sub-direction, record only)
 

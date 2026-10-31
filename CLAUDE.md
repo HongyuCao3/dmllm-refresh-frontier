@@ -8,7 +8,9 @@ posterior signal (answer reward, reference trajectories, gold answers) can corre
 worse on image-dependent tokens, and whether commits and KV-cache refresh can be decided jointly. The plan is
 `plans/research_plan_v3.md` (read the closest work → block baselines → order upper bound → multimodal diagnosis →
 learned policy → commit + cache, with gates A–E). Results already established in prior work (listed in the plan)
-are cited, not re-tested; the closest competitor is arXiv 2607.08056 (RL order policy on MMaDA).
+are cited, not re-tested; the closest competitor is arXiv 2607.08056 (RL order policy on MMaDA). A backup main
+line (plan v3, "备用主线", user 2026-10-31) moves the question to Lafa, a text-only block-causal flow LM whose commit is a
+left prefix of each 4-token block; it is switched to only by the user.
 
 The earlier main line, cache refresh scheduling at a lower refresh ratio r (`plans/research_plan_v2.md`,
 gates G1–G4), is a **concluded sub-direction** (user decision 2026-10-30): with block = gen_length, the

@@ -17,7 +17,7 @@ Authoritative run log, decisions and lever maps. Plan: `plans/research_plan_v3.m
 | Docs | Quarto site filled 2026-10-29: Exp 1–3, Obs 1, claims C 1–C 5, task definition, method (loop), dashboard. `cd docs && quarto render` |
 | Phase 2 | Exp 5 done 2026-10-29 (job 18601279): **G2 PASS on captions** (60.8%); MathVerse not probed. Page `docs/experiments/exp5_replacement_error_map.qmd` |
 | Phases 3–5 (v2) | **not run**: sub-direction concluded 2026-10-30 (see Decisions). Elastic-Cache / dKV-Cache ports dropped unless phase E needs them |
-| Plan v3 | **draft 2026-10-30, revised after a literature check the same day**: `plans/research_plan_v3.md`; gates A–E proposed in `.claude/research.md`, to be frozen by the user before phase A runs |
+| Plan v3 | **draft 2026-10-30, revised after a literature check the same day; revised again 2026-10-31** (gate B main condition, self-select check, 788-problem proposal, phase-C calibration target, D-order / D-count, training-set dedup, phase-D compute 300–500 GPU-h, backup line on Lafa): `plans/research_plan_v3.md`; gates A–E and L1 proposed in `.claude/research.md`, to be frozen by the user before phase A runs |
 
 ## Decisions (user)
 
@@ -30,6 +30,7 @@ Authoritative run log, decisions and lever maps. Plan: `plans/research_plan_v3.m
 
 | 2026-10-29 | **Order of work**: record and analyse all Phase 0–1 results in the docs first; then (1) MathVerse frontier, (2) Phase 2 error map, D3 and D5 first. Elastic-Cache / dKV-Cache ports wait until G2 / G3 |
 | 2026-10-30 | **Main line changed to commit (unmasking) policies, plan v3.** Cache refresh becomes a concluded sub-direction: with block = gen_length the 7.3 s per-item floor caps any refresh saving at ~12% (< G3's 40%), and Exp 4 shows staleness flips answers symmetrically (lost ≈ gained), which points at commit decisions, not cache age. Base model stays frozen; a small commit policy may be trained from phase D on (`CLAUDE.md`, `.claude/global.md`, `.claude/research.md` updated) |
+| 2026-10-31 | **Backup main line: commit policies on Lafa** (plan v3, "备用主线"). Lafa commits a left prefix (1–4 tokens) of each 4-token block after K Euler steps, so the decision is prefix length and step count, not order. Trigger and gate L1 thresholds still to be confirmed by the user |
 | 2026-10-29 | **No analysis-paper fallback for now**: if G2 or G3 fails, the response is bad-case analysis aimed at an improvement and a positive result, not a pivot to the "error is uniform" paper. Thresholds unchanged |
 
 ## Findings so far (setup)
@@ -88,6 +89,13 @@ Exploratory (questions posed after the run). Page: `docs/experiments/obs1_fronti
 ## Next steps
 
 ### Plan v3 (2026-10-30)
+
+**Pilot for phase B from Exp 4 data (2026-10-31, CPU, exploratory, not a reported result).** Treating the 6 Exp 4
+cache arms as 6 perturbed decodings with the order unchanged: any-of-6 correct 35.7% vs full 30.3% (+5.3 points;
+multiple-choice 49.1% vs 42.8%, free-form 17.3% vs 13.4%); all-of-6 correct 25.0%. Perturbation alone already
+clears the proposed 3-point headroom, so gate B's discriminating condition is order@K vs token sampling. Computed
+from `score_mathverse.py --dump` on `/scratch/.../mathverse_vd_frontier/`. MathVerse testmini vision-dominant has
+788 problems (parquet checked); the 300 are a seeded subset.
 
 Open decisions for the user before phase A runs: (1) freeze gates A–E (proposals in `.claude/research.md`);
 (2) the policy training set (candidates: Geo170K, MathV360K, GeoQA train; any MathVerse version is excluded,
