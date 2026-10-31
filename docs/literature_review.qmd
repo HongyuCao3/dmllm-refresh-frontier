@@ -2,294 +2,52 @@
 title: "Literature Review"
 ---
 
-## Research Landscape
+Phase 0 of plan v3 (2026-10-31): the two closest learned-order papers, read in full.
+The wider landscape is the table in `plans/research_plan_v3.md` ("已有工作与空白").
 
-Organise related work into 2–4 thematic clusters. Each cluster follows the same
-**What → Why → How** structure: *what* and *why* are one-sentence scan-points;
-*how* details are hidden behind a disclosure toggle and prefaced by a diagram.
+## Closest work
 
-```{dot}
-//| label: fig-landscape
-//| fig-cap: "Literature landscape: foundations → clusters → this work"
-//| fig-width: 7
-//| fig-height: 3.5
-digraph G {
-  bgcolor="transparent"
-  rankdir=TB
-  graph [ranksep=0.55, nodesep=0.5]
-  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
-        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
-        shape=box, width=1.6, height=0.42, margin="0.15,0.08"]
-  edge [color="#6c757d", penwidth=1.4]
+| | 2607.08056 (Ouyang et al.) | SAS, 2606.23567 (Xu et al.) |
+|---|---|---|
+| Model | MMaDA-8B, multimodal | LLaDA-8B, text |
+| Base frozen? | Not stated; Alg. 1 updates one shared θ | Yes (§4); optional θ fine-tune on Sudoku only |
+| Code | None found | Public: `jimmyxu123/SAS_code`, GSM8K policy checkpoint |
+| Policy input | Last-layer hidden states, step index, mask flag | Top-1 prob, entropy, normalized position |
+| Policy size | Not stated (UPM from DCoLT, 2505.10446) | ~0.33M (code: 2-layer, d 128) |
+| Action | Top-K set, K fixed per step: **D-order** | One position per step: **D-order**, sequential |
+| Reward | 2·correct + 0.4·format | Teacher-forced likelihood of the gold completion |
+| Training data | VLAA-Thinker digit + multiple-choice subsets | GSM8K / MBPP train |
+| Compute | 8×A100, 5,000 steps, 12 rollouts per prompt | 4×H200, ~200 steps, ~12 GPU-h |
+| NFE reported? | No | No |
+| MathVerse / LLaDA-V / cache | None | None |
 
-  subgraph row1 {
-    rank=same
-    F1 [label="Cluster A", fillcolor="#375a7f"]
-    F2 [label="Cluster B", fillcolor="#375a7f"]
-    F3 [label="Cluster C", fillcolor="#375a7f"]
-  }
-  subgraph row2 {
-    rank=same
-    G1 [label="Gap A", fillcolor="#4a2040", color="#e74c3c"]
-    G2 [label="Gap B", fillcolor="#4a2040", color="#e74c3c"]
-    G3 [label="Gap C", fillcolor="#4a2040", color="#e74c3c"]
-  }
-  subgraph row3 {
-    rank=same
-    Us [label="This Work", fillcolor="#1a4a3a", color="#00bc8c", width=5.0]
-  }
+## Headline results
 
-  F1 -> G1  F2 -> G2  F3 -> G3
-  G1 -> Us  G2 -> Us  G3 -> Us
-}
-```
+- 2607.08056: MathVista_MINI 27.7 → 29.0, MMMU 0.27 → 0.31, GQA 48.6 → 47.6.
+- 2607.08056: single runs, no error bars, so gains are not separable from noise.
+- 2607.08056: Fig. 3 shows the baseline collapsing to one-token answers.
+- Part of its gain may be fixing that collapse, absent in LLaDA-V.
+- SAS: GSM8K 0.628 → 0.760 at 256 tokens, one token per step.
+- SAS: left-to-right order ties or beats SAS at short lengths (Table 11).
+- SAS: run in parallel top-k zero-shot, the policy degrades (Table 7).
 
----
+## What this changes in plan v3
 
-## Cluster A — [Category Name, e.g., "Deep Feature Extractors"]
+- **Gaps confirmed.** Neither paper uses LLaDA-V, MathVerse, NFE, token analysis or caches.
+- **D-order first.** Both baselines are D-order, so D-order is the fair comparison.
+- **Add a left-to-right baseline.** SAS's own Table 11 makes it mandatory in phase A.
+- **SAS-style baseline must be retrained.** Our steps commit k > 1 tokens; its sequential policy degrades there.
+- **SAS reward needs gold reasoning text.** MathVerse has answers only; options below.
+- **Option 1: training set with reasoning traces.** Keep the likelihood reward unchanged.
+- **Option 2: swap to a correctness reward.** Record it as a deviation from SAS.
+- **SAS reward cost.** One forward per revealed token, with ~2.3k image-heavy prompt tokens.
+- **2607.08056-style baseline is a rebuild.** No code; UPM internals come from DCoLT.
+- **Freeze the base for it too.** Its freezing is ambiguous; record this as a deviation.
+- **Training set.** VLAA-Thinker subsets match 2607.08056; dedup against MathVerse still applies.
+- **Compute.** 2607.08056-scale RL (12 rollouts, 5k steps) exceeds the phase-D estimate.
 
-- **What**: [One sentence — what this line of work produces or achieves.]
-- **Why it emerged**: [One sentence — what open problem or limitation drove its creation.]
-- **Why it's insufficient**: [One sentence — the concrete gap that this work addresses.]
+## Sources
 
-> Key papers: [@ref1], [@ref2], [@ref3]
-
-```{dot}
-//| label: fig-cluster-a
-//| fig-cap: "Cluster A: core mechanism"
-//| fig-width: 7
-//| fig-height: 2.8
-digraph G {
-  bgcolor="transparent"
-  rankdir=LR
-  graph [ranksep=0.6, nodesep=0.45]
-  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
-        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
-        shape=box, width=1.55, height=0.42]
-  edge [color="#6c757d", penwidth=1.4]
-
-  subgraph col1 {
-    rank=same
-    In1 [label="Input A",  fillcolor="#375a7f"]
-    In2 [label="Input B",  fillcolor="#375a7f"]
-  }
-  subgraph col2 {
-    rank=same
-    Op1 [label="Op 1"]
-    Op2 [label="Op 2"]
-  }
-  subgraph col3 {
-    rank=same
-    Out [label="Output", fillcolor="#1a4a3a", color="#00bc8c"]
-    Gap [label="Gap",    fillcolor="#4a2040", color="#e74c3c"]
-  }
-
-  In1 -> Op1  In2 -> Op2
-  Op1 -> Out  Op2 -> Out
-  Out -> Gap [style=dashed, color="#e74c3c"]
-}
-```
-
-<details>
-<summary><strong>How — Core Ideas and Steps</strong></summary>
-
-**Core idea**: [one sentence — the key insight or inductive bias]
-
-Steps:
-
-1. [Step 1 — input processing or encoding]
-2. [Step 2 — main transformation]
-3. [Step 3 — output or prediction]
-
-Key design choices:
-
-- [Choice A]: [why it was made; alternative considered]
-- [Choice B]: [why it was made; alternative considered]
-
-Limitation in detail: [explain precisely why the gap arises from the mechanism, not just the result]
-
-</details>
-
----
-
-## Cluster B — [Category Name, e.g., "Regularisation Methods"]
-
-- **What**: [One sentence — what this line of work produces or achieves.]
-- **Why it emerged**: [One sentence — what open problem or limitation drove its creation.]
-- **Why it's insufficient**: [One sentence — the concrete gap that this work addresses.]
-
-> Key papers: [@ref4], [@ref5]
-
-```{dot}
-//| label: fig-cluster-b
-//| fig-cap: "Cluster B: core mechanism"
-//| fig-width: 7
-//| fig-height: 2.8
-digraph G {
-  bgcolor="transparent"
-  rankdir=LR
-  graph [ranksep=0.6, nodesep=0.45]
-  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
-        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
-        shape=box, width=1.55, height=0.42]
-  edge [color="#6c757d", penwidth=1.4]
-
-  subgraph col1 {
-    rank=same
-    In1 [label="Input A",  fillcolor="#375a7f"]
-    In2 [label="Input B",  fillcolor="#375a7f"]
-  }
-  subgraph col2 {
-    rank=same
-    Op1 [label="Op 1"]
-    Op2 [label="Op 2"]
-  }
-  subgraph col3 {
-    rank=same
-    Out [label="Output", fillcolor="#1a4a3a", color="#00bc8c"]
-    Gap [label="Gap",    fillcolor="#4a2040", color="#e74c3c"]
-  }
-
-  In1 -> Op1  In2 -> Op2
-  Op1 -> Out  Op2 -> Out
-  Out -> Gap [style=dashed, color="#e74c3c"]
-}
-```
-
-<details>
-<summary><strong>How — Core Ideas and Steps</strong></summary>
-
-**Core idea**: [one sentence — the key insight or inductive bias]
-
-Steps:
-
-1. [Step 1 — input processing or encoding]
-2. [Step 2 — main transformation]
-3. [Step 3 — output or prediction]
-
-Key design choices:
-
-- [Choice A]: [why it was made; alternative considered]
-- [Choice B]: [why it was made; alternative considered]
-
-Limitation in detail: [explain precisely why the gap arises from the mechanism]
-
-</details>
-
----
-
-## Cluster C — [Category Name, e.g., "Scalable Training Strategies"]
-
-- **What**: [One sentence — what this line of work produces or achieves.]
-- **Why it emerged**: [One sentence — what open problem or limitation drove its creation.]
-- **Why it's insufficient**: [One sentence — the concrete gap that this work addresses.]
-
-> Key papers: [@ref6], [@ref7], [@ref8]
-
-```{dot}
-//| label: fig-cluster-c
-//| fig-cap: "Cluster C: core mechanism"
-//| fig-width: 7
-//| fig-height: 2.8
-digraph G {
-  bgcolor="transparent"
-  rankdir=LR
-  graph [ranksep=0.6, nodesep=0.45]
-  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
-        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
-        shape=box, width=1.55, height=0.42]
-  edge [color="#6c757d", penwidth=1.4]
-
-  subgraph col1 {
-    rank=same
-    In1 [label="Input A",  fillcolor="#375a7f"]
-    In2 [label="Input B",  fillcolor="#375a7f"]
-  }
-  subgraph col2 {
-    rank=same
-    Op1 [label="Op 1"]
-    Op2 [label="Op 2"]
-  }
-  subgraph col3 {
-    rank=same
-    Out [label="Output", fillcolor="#1a4a3a", color="#00bc8c"]
-    Gap [label="Gap",    fillcolor="#4a2040", color="#e74c3c"]
-  }
-
-  In1 -> Op1  In2 -> Op2
-  Op1 -> Out  Op2 -> Out
-  Out -> Gap [style=dashed, color="#e74c3c"]
-}
-```
-
-<details>
-<summary><strong>How — Core Ideas and Steps</strong></summary>
-
-**Core idea**: [one sentence — the key insight or inductive bias]
-
-Steps:
-
-1. [Step 1 — input processing or encoding]
-2. [Step 2 — main transformation]
-3. [Step 3 — output or prediction]
-
-Key design choices:
-
-- [Choice A]: [why it was made; alternative considered]
-- [Choice B]: [why it was made; alternative considered]
-
-Limitation in detail: [explain precisely why the gap arises from the mechanism]
-
-</details>
-
----
-
-## Gap Synthesis
-
-From the three clusters above, three concrete gaps converge to motivate this work:
-
-- **Gap A** (from Cluster A): [one sentence — what specifically is missing]
-- **Gap B** (from Cluster B): [one sentence — what specifically is missing]
-- **Gap C** (from Cluster C): [one sentence — what specifically is missing]
-
-```{dot}
-//| label: fig-gap-synthesis
-//| fig-cap: "Three gaps → this work's contributions"
-//| fig-width: 7
-//| fig-height: 2.8
-digraph G {
-  bgcolor="transparent"
-  rankdir=LR
-  graph [ranksep=0.6, nodesep=0.45]
-  node [style=filled, fillcolor="#2c3035", color="#4a9eda",
-        fontcolor="#f8f9fa", fontname="Arial", fontsize=11,
-        shape=box, width=1.55, height=0.42]
-  edge [color="#6c757d", penwidth=1.4]
-
-  subgraph col1 {
-    rank=same
-    GA [label="Gap A", fillcolor="#4a2040", color="#e74c3c"]
-    GB [label="Gap B", fillcolor="#4a2040", color="#e74c3c"]
-    GC [label="Gap C", fillcolor="#4a2040", color="#e74c3c"]
-  }
-  subgraph col2 {
-    rank=same
-    C1 [label="Contrib 1", fillcolor="#1a4a3a", color="#00bc8c"]
-    C2 [label="Contrib 2", fillcolor="#1a4a3a", color="#00bc8c"]
-    C3 [label="Contrib 3", fillcolor="#1a4a3a", color="#00bc8c"]
-  }
-
-  GA -> C1  GB -> C2  GC -> C3
-}
-```
-
-<details>
-<summary><strong>How — Positioning Argument</strong></summary>
-
-**vs. Cluster A best method** ([@ref2]): same problem formulation; this work improves by [mechanism X] — directly addresses Gap A.
-
-**vs. Cluster B best method** ([@ref5]): different scope; this work generalises to [scenario] that [@ref5] excludes.
-
-**vs. Cluster C best method** ([@ref8]): concurrent work; key difference is [design decision Y] — empirically validated in [experiment].
-
-</details>
+- 2607.08056: <https://arxiv.org/abs/2607.08056> (HTML v1, appendices included)
+- SAS: <https://arxiv.org/abs/2606.23567>, <https://jimmyxu123.github.io/SAS>, <https://github.com/jimmyxu123/SAS_code>
+- DCoLT (UPM origin): <https://arxiv.org/abs/2505.10446>

@@ -18,6 +18,8 @@ Authoritative run log, decisions and lever maps. Plan: `plans/research_plan_v3.m
 | Phase 2 | Exp 5 done 2026-10-29 (job 18601279): **G2 PASS on captions** (60.8%); MathVerse not probed. Page `docs/experiments/exp5_replacement_error_map.qmd` |
 | Phases 3–5 (v2) | **not run**: sub-direction concluded 2026-10-30 (see Decisions). Elastic-Cache / dKV-Cache ports dropped unless phase E needs them |
 | Plan v3 | **draft 2026-10-30, revised after a literature check the same day; revised again 2026-10-31** (gate B main condition, self-select check, 788-problem proposal, phase-C calibration target, D-order / D-count, training-set dedup, phase-D compute 300–500 GPU-h, backup line on Lafa): `plans/research_plan_v3.md`; gates A–E and L1 proposed in `.claude/research.md`, to be frozen by the user before phase A runs |
+| Plan v3 phase 0 | **done 2026-10-31** (`docs/literature_review.qmd`): both 2607.08056 and SAS are D-order, neither reports NFE or uses LLaDA-V / MathVerse / caches (gaps hold). SAS: base frozen, code public, sequential one-token policy that degrades under parallel top-k, reward needs gold reasoning text. 2607.08056: no code, freezing unstated, single-run gains. Changes: left-to-right baseline added to phase A; SAS-style baseline retrained under our k with a reward choice for the user; 2607.08056-style baseline rebuilt from DCoLT's UPM with the base frozen |
+| Backup line L0 | **done 2026-10-31** (CPU): on GSM8K a training-free min-p ≥ 0.9 step gate already saves 32–66% at ≥ 99.4% token agreement, and accuracy is saturated (0.96): no headroom; only a harder task (MATH-500, GPU) is left open. Details under Next steps |
 
 ## Decisions (user)
 
@@ -96,6 +98,30 @@ multiple-choice 49.1% vs 42.8%, free-form 17.3% vs 13.4%); all-of-6 correct 25.0
 clears the proposed 3-point headroom, so gate B's discriminating condition is order@K vs token sampling. Computed
 from `score_mathverse.py --dump` on `/scratch/.../mathverse_vd_frontier/`. MathVerse testmini vision-dominant has
 788 problems (parquet checked); the 300 are a seeded subset.
+
+**Backup line, phase L0 (2026-10-31, CPU, exploratory, not a reported result).** Re-read of dKV-ARKV L-1 traces
+(`~/dKV-ARKV/results/l1_lafa/18003407/`, Lafa-8B, GSM8K train first 100, CFG 8 + self-cond, single seed; per-row
+argmax / min-p, no per-token confidences stored):
+
+| K | acc | stop at first row with min p ≥ 0.9: rows used / NFE saved | token agreement with final | final row min p < 0.9 |
+|---|---|---|---|---|
+| 2 | 0.93 | 0.68 / 32% | 1.0000 | 26% of blocks |
+| 4 | 0.96 | 0.49 / 51% | 0.9991 | 6.8% |
+| 8 | 0.96 | 0.34 / 66% | 0.9936 | 2.1% |
+
+- **The prior already takes the step-stopping slack.** A fixed confidence gate (no training) saves 32–66% of the
+  rows at ≥ 99.4% token agreement, so the proposed gate L1 ("the prior threshold does not reach the oracle point")
+  would fail on GSM8K: no room left for a posterior on step count.
+- **Accuracy is saturated.** K 4 is 0.96 vs AR 0.97 (4 wrong of 100), so prefix length cannot buy accuracy here.
+  Per-problem share of low-confidence blocks separates wrong from right only weakly (AUROC 0.54–0.77, n_wrong 4–7,
+  no inference).
+- **Literature:** step / token early stopping and adaptive commit are well covered on masked DLMs (Prophet
+  2508.19982, Jot 2602.11133, LESS 2606.16908, C⁴ / LATCH 2607.28166, x-Prediction Flow 2606.29066, Ada-DLM ACL
+  2026). Nothing found on block-causal continuous flow LMs like Lafa, but the training-free gate above is the
+  direct transfer and already works.
+- **Reading:** on GSM8K the backup line has no headroom on either axis. The only open case is a harder task where
+  flow accuracy is not saturated (MATH-500): whether prefix length or step count then changes accuracy needs GPU runs
+  (L1). The efficiency side still has to be compared with self-speculation (×8.5 faster than serial K 4 flow).
 
 Open decisions for the user before phase A runs: (1) freeze gates A–E (proposals in `.claude/research.md`);
 (2) the policy training set (candidates: Geo170K, MathV360K, GeoQA train; any MathVerse version is excluded,

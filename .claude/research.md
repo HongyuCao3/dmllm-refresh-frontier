@@ -96,7 +96,8 @@ hold on other samples", so:
   threshold. Forced-reasoning variants are reported separately from official settings.
 - Speed and quality come from the same runs, on one GPU type, timed as in `.claude/cluster.md`.
 - r is reported as measured, and any probe or signal cost is converted into an equivalent r increment.
-- Every proposed commit policy is compared against the **confidence baselines, a random commit order, a
+- Every proposed commit policy is compared against the **confidence baselines, block-wise left-to-right (SAS
+  Table 11: it ties or beats SAS at short lengths), a random commit order, a
   training-free visual re-ranking method (VRCD or VISAGE), and SAS-style and 2607.08056-style learned policies,
   all at the same NFE**; a phase-E policy is compared against EntropyCache and Polestar; every upper bound from best-of-K orders is compared against best-of-K token sampling with the
   order fixed, so that "more tries" is not read as "better order".
