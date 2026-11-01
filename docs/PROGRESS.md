@@ -4,7 +4,7 @@ Authoritative run log, decisions and lever maps. Plan: `plans/research_plan_v3.m
 `plans/research_plan_v2.md` (cache refresh) is a concluded sub-direction, logged below as Phases 0–2. Rules: `.claude/research.md`,
 `.claude/cluster.md`. Newest entries at the bottom of each section.
 
-## Status (2026-10-31: main line stopped at gate A; Lafa line (E1, P1) closed; looking for a new direction)
+## Status (2026-11-01: main line stopped at gate A; Lafa line (E1, P1) closed; cross-line reading written; looking for a new direction)
 
 | Plan item | Status |
 |---|---|
@@ -154,6 +154,121 @@ head's accuracy in joint AR + flow (or AR + diffusion) models? No work targets t
   the draft misses at the ~18% AR-uncertain tokens, i.e. branch points. Open, architecture-specific question: does
   branching at those points (near-free at batch 1) raise accuracy, and is there a selection signal that captures it?
   Not read in full: TiDAR 2511.08923 and Zarya 2609.19868 (PDF not parsed; abstracts only).
+
+## Cross-line reading: why the hypotheses had no headroom (2026-11-01)
+
+Reading across v2 (refresh), v3 phase A (commit order), Lafa L0 / E1 (step count, draft order / schedule) and P1
+(branching). Exploratory synthesis of logged results; no new runs.
+
+| Hypothesis | Expected | Measured | Root cause |
+|---|---|---|---|
+| v2: fewer refreshes save much time | ≥ 40% at matched quality (G3) | ≤ 12% | Architecture removed the lever: block = gen_length gives a 7.3 s/item floor |
+| v3 A: commit order / step count moves accuracy | Clear gaps between policies | All 15 arms within noise; only threshold 0.9 significant (+1.7) | Task at the floor (below) |
+| Lafa E1: order / schedule speeds self-speculation | More accepted tokens per round | Per-block oracle +0.01 tokens | Baseline already near the ceiling; AR head fixes quality, the draft moves only speed |
+| Lafa L0: posterior step count | Learned stopping beats the prior | Training-free min-p gate already saves 32–66% | Baseline took the slack; GSM8K saturated (0.96) |
+| Lafa P1: branch at AR-uncertain tokens | Targeted beats random branching | Equal gains | Gain is generic self-consistency, not the branch point |
+
+Common causes:
+
+1. **The test bed sits at a floor or ceiling.** LLaDA-V on MathVerse vision-dominant: 27–31% (multiple choice 40–44%,
+   free form 11–14%); 288–300 of 300 outputs fill the 256-token cap with repetition loops; correctness is unstable
+   (any-correct over 15 arms 56%, all-correct 3.3%). Accuracy moves mainly with luck, which swamps an order effect.
+   Lafa on GSM8K (0.96) has nothing left to gain. Order effects in the literature appear in the "competent but
+   error-prone" range (SAS: LLaDA-8B GSM8K 64 → 76%).
+2. **The lever is absent by architecture or already taken by a training-free baseline** (v2 floor; Lafa's AR head and
+   block 4; min-p gate; self-speculation). Each was derivable before running.
+3. **Decoding cannot fix capability.** A frozen model's misreadings or missing knowledge are not changed by commit
+   order; phase C (image-dependent errors) was not reached.
+4. **The recurring real signal is trajectory instability, not order.** Exp 4: any-of-6 cache arms 35.7% vs 30.3%;
+   phase A: any-of-15 arms 56% vs ~27% (free form 26% vs ~12%; multiple choice is inflated by guessing); P1: random and
+   targeted branching gain alike. The room is in selecting the right trajectory, not in steering one; P1 already shows
+   mean log-probability does not select.
+
+The gates worked as intended: phase A + E1 + P1 cost about 16.5 GPU-h and closed three lines before any RL spend.
+
+**Headroom-first protocol for the next direction** (before any method work): (1) the model sits in a middle accuracy
+range (about 30–70%) with well-formed outputs; (2) measure the perturbation null (pass@K, majority vote); (3) the
+lever's oracle must clearly exceed that null; (4) check that the simplest training-free baseline has not taken it.
+
+Candidates, by evidence: **A** rerun phase A on a task where the model is in the middle range (or text LLaDA-8B on
+GSM8K) to tell "task floor" from "no lever" (~10 GPU-h); **B** selection among diffusion trajectories: majority vote
+and phase-B2 signal discrimination on existing per-arm outputs (CPU on the cluster; the dumps are on /scratch);
+**C** check prompt / EOS / gen_length behind the repetition loops before trusting any MathVerse number. Suggested
+order: C check and B CPU analysis first, then A. Literature for B and C: see below.
+
+## Literature check: B (selection among trajectories) and C (repetition / length) (2026-11-01)
+
+Abstract- and page-level reading; venues as stated on the conference pages found.
+
+**B — selecting the right diffusion trajectory.**
+
+| Work | What | Setting | Gain | Reusable? |
+|---|---|---|---|---|
+| Time Is a Feature (2508.09138, ICLR 2026) | Correct answers appear mid-denoising and get overwritten (GSM8K: 68.5% final vs 80.5% correct at some step); temporal self-consistency voting over steps (training-free, ~0 cost); temporal semantic entropy as an RL reward | LLaDA-8B, text | voting ~+1.5; RL +2 to +25 | Yes: voting needs per-step answers from one run; TSE is a label-free signal for B2 |
+| S³ (2604.06260) | Verifier-guided particle search; intrinsic composite verifier; majority vote + NLL tie-break as Best-of-K baseline | LLaDA-8B, text | +2 to +4.6 over base, ≤ +2 over Best-of-8 | Best-of-K + vote is the null to beat |
+| Reward-guided stitching (2602.22871, NeurIPS 2026) | Parallel LLaDA traces, PRM scores steps, stitched rationale, AR solver recomputes answer | text, external PRM + AR solver | up to +23.8 | Gain leans on external PRM / AR solver |
+| PG-DLM (2507.08390) | Particle Gibbs over whole trajectories with a PRM | LLaDA-8B, text | +1–3 over SMC | Needs a reward model |
+| dMLLM-TTS (2512.19433, CVPR 2026 per paper notes) | Hierarchical trajectory search; self-verification by the model's own yes-logit; 5–6× cheaper than linear search | MMaDA / Lumina-DiMOO / Muddit, **text-to-image only** | GenEval +18–29% | Self-verify idea transfers; understanding untested |
+| Self-consistency (ICLR 2023), Let's Verify Step by Step (ICLR 2024), VisualPRM (2503.10291) | Majority vote; process > outcome supervision; a multimodal PRM for Best-of-N | AR LLM / MLLM | — | A multimodal PRM can score LLaDA-V candidates |
+
+Reading: selection gains need a verifier signal; intrinsic likelihood / confidence is weak (as in P1). Majority vote and
+Best-of-K are the null. **Open: trajectory selection for diffusion MLLMs on understanding / visual math** (dMLLM-TTS is
+text-to-image only; LaViDa-R1 uses tree search inside training).
+
+**C — repetition and length.**
+
+| Work | What | Setting | Reusable? |
+|---|---|---|---|
+| CoTA, "Repeat Curse in dMLLMs" (2601.20520, ICLR 2026) | Repetition under **dLLM-Cache** (which also caches response features) comes from disrupted attention to nearby context tokens and unsettled deep-layer context entropy; training-free fix cuts adjacent repetition up to 92%; n-gram penalties hurt accuracy. **Prefix KV cache causes no repetition** on LLaDA-V / LaViDa | **LLaDA-V**, MMaDA | Probably not our cause (we cache the prompt only, and Exp 4 full also loops); see the reading below |
+| DAEDAL (2508.00819), ρ-EOS (2601.22527) | Too-long fixed length lowers accuracy; training-free variable length from EOS confidence / density; "EOS trap" early in decoding | LLaDA-8B, text | Directly (length 256 vs content) |
+| dLLM-Var (2510.24605) | Over-long outputs → repetition; EOS learned by SFT | text, training | Needs training |
+| Thinking Diffusion (2604.05497, CVPR 2026) | dMLLMs write the answer at early steps then rationalize; weak early visual grounding; position-step penalty + visual CFG, training-free | LaViDa, MMaDA (not LLaDA-V / MathVerse) | Directly; a commit-order heuristic with gains up to +7.5, in tension with our phase-A null |
+| Neural text degeneration, unlikelihood training (ICLR 2020) | Classic AR repetition causes and fixes | AR | Background |
+
+Reading: C is a hygiene step with published training-free fixes, not a research line. It matters because degenerate
+outputs may hide effects (candidate A). Suggested next: (1) on 50 problems, gen_length 128 / 256 / 512, CoTA and
+DAEDAL-style length control, check repetition rate and accuracy; (2) if outputs become well formed, rerun the phase-A
+order arms plus a Thinking-Diffusion position-step penalty; (3) in parallel, B on existing dumps: majority vote, Best-of-K,
+temporal voting (needs per-step answers), and a VisualPRM-scored oracle-selection check.
+
+## Reading: CoTA (2601.20520) and answer-commit timing, what they mean for this project (2026-11-01)
+
+CoTA specifics (from the paper; to verify against code before reuse):
+
+- Cache studied: dLLM-Cache (α 25%, Ep 25, Es 7) on LLaDA-V and MMaDA; prefix KV cache also tested and gives no
+  repetition. LLaDA-V, 500 COCO captions: samples with any repetition 6.9% → 82.3% (length 512) and 3.3% → 65.6%
+  (64) with dLLM-Cache; 1–2% without cache across block lengths.
+- Metrics: ARR = share of tokens equal to the previous token; SRR = share of samples with any repetition; run-length
+  statistics. Context tokens = the target token and its 2 nearest neighbours; entropy = normalised vocabulary entropy
+  summed over layers 26–30; it converges in deep layers in normal decoding and stays high under repetition.
+- Method: CTAE multiplies attention by a Gaussian distance decay (τ 5, γmin 0.5); CTEV ranks commits by
+  confidence + α · context entropy (α 0.75). **The paper calls the entropy term a penalty but the formula adds it**,
+  which would favour uncertain tokens. **The MathVerse / MathVista gains in the text do not match Table 3**
+  (MathVista score 54.9 → 59.7, ARR 6.9 → 1.3). Gains are mostly recovery from cache damage; several stay below the
+  uncached model (MMStar 59.3 vs 60.1). Cost: about 20–25% lower throughput.
+
+What it implies here:
+
+1. **Explains the v2 null.** Our Fast-dLLM-style cache reuses only the prompt K/V and recomputes the answer every
+   step, so the answer's local information flow is never cached; by CoTA this cache type does not cause repetition.
+   Consistent with Exp 4 (stale cache flips answers without lowering accuracy) and with Exp 5 (staleness effects
+   concentrated in deep layers: last 16 layers 78%).
+2. **Our repetition probably has another cause.** Exp 4 full (no cache) also fills the 256 positions with loops, so
+   length / EOS (DAEDAL, ρ-EOS) is the likelier cause. Check (CPU on the cluster dumps): ARR and SRR per arm for Exp 4
+   (full vs intervals) and phase A; equal rates across arms → not the cache, move to length / EOS.
+3. **Deep-layer neighbour entropy is a usable signal**, not a fix: (a) as a commit-timing gate (commit a token,
+   especially the answer span, only when its neighbours' deep entropy has settled); (b) as a phase-B2 candidate
+   signal for selecting trajectories (local structure, unlike mean log-probability, which failed in P1). Needs
+   logit-lens readouts from intermediate layers; try on 50 problems first.
+
+Reframing from the B / C literature: two top-venue papers put the issue on the **timing of committing the answer
+span**, not the order of the whole text. Thinking Diffusion (CVPR 2026): dMLLMs write the answer in the first steps
+and then rationalise (commit too early); a position-step penalty helps up to +7.5 on LaViDa / MMaDA. Time Is a Feature
+(ICLR 2026): the correct answer appears mid-denoising and is overwritten (GSM8K 68.5% final vs 80.5% correct at some
+step; not kept). Phase A varied the order of all 256 positions; it did not target when the answer span commits.
+Candidate question for a next line: **when should the answer span be committed, and can a training-free signal (step
+agreement, neighbour deep entropy) pick that moment on LLaDA-V once outputs are well formed?** Prerequisite: fix the
+repetition / length issue (C).
 
 ## Next steps
 
