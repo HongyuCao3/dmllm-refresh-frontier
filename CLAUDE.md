@@ -14,8 +14,9 @@ left prefix of each 4-token block; it is switched to only by the user.
 
 **Status 2026-10-31 (user decisions):** gate A judged FAIL (phase-A block baselines: commit order and step count move
 accuracy only within noise), so the v3 main line stopped; the Lafa backup line was then concluded after experiment E1
-(no speed headroom from draft order or time schedule in self-speculative decoding). The next direction is open; see
-`docs/PROGRESS.md`.
+(no speed headroom from draft order or time schedule in self-speculative decoding), and its AR-side follow-up P1
+(branching at AR-uncertain tokens: generic self-consistency gain, no better than random branching) closed the Lafa
+line. A new direction is being sought; see `docs/PROGRESS.md`.
 
 The earlier main line, cache refresh scheduling at a lower refresh ratio r (`plans/research_plan_v2.md`,
 gates G1–G4), is a **concluded sub-direction** (user decision 2026-10-30): with block = gen_length, the
